@@ -28,6 +28,10 @@ test('users without a role are forbidden from every staff endpoint', function (s
         return route('staff.bookings.check-in', bookReservation(now()));
     }],
     'toggle lane' => ['patch', fn () => route('staff.lanes.update', Lane::factory()->create())],
+    'list reservations' => ['get', fn () => route('staff.reservations.index')],
+    'make a reservation' => ['post', fn () => route('staff.reservations.store')],
+    'change a reservation' => ['patch', fn () => route('staff.reservations.update', reserveLanes(Lane::factory()->create(), now()->addHours(2)))],
+    'cancel a reservation' => ['delete', fn () => route('staff.reservations.destroy', reserveLanes(Lane::factory()->create(), now()->addHours(2)))],
 ]);
 
 test('staff and admins can visit the staff area', function (string $role) {

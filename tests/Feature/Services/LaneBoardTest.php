@@ -129,6 +129,44 @@ test('the next allocation is shown alongside the current one', function () {
             'startsAt' => '2026-10-01T20:00:00+00:00',
             'customerName' => 'Next Party',
             'note' => null,
+            'isClosure' => false,
+        ]);
+});
+
+test('a lane is closed in the hour before a reservation and shows who it is for', function () {
+    $lane = Lane::factory()->create();
+    $booking = reserveLanes($lane, now()->addMinutes(30), partySize: 14, name: 'Farah');
+
+    $card = app(LaneBoard::class)->lanes()[0];
+
+    expect($card['state'])->toBe('closed_for_reservation')
+        ->and($card['current'])->toMatchArray([
+            'bookingId' => null,
+            'customerName' => 'Farah',
+            'partySize' => 14,
+            'endsAt' => '2026-10-01T18:30:00+00:00',
+        ])
+        ->and($card['next'])->toBe([
+            'startsAt' => '2026-10-01T18:30:00+00:00',
+            'customerName' => 'Farah',
+            'note' => null,
+            'isClosure' => false,
+        ])
+        ->and($booking->allocations)->toHaveCount(1);
+});
+
+test('a free lane shows when it will close for a reservation', function () {
+    $lane = Lane::factory()->create();
+    reserveLanes($lane, now()->addHours(3), name: 'Farah');
+
+    $card = app(LaneBoard::class)->lanes()[0];
+
+    expect($card['state'])->toBe('free')
+        ->and($card['next'])->toBe([
+            'startsAt' => '2026-10-01T20:00:00+00:00',
+            'customerName' => 'Farah',
+            'note' => null,
+            'isClosure' => true,
         ]);
 });
 

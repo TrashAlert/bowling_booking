@@ -11,6 +11,7 @@ const stateLabels: Record<LaneCardState, string> = {
     in_play: 'In play',
     held: 'Held',
     reserved: 'Reserved',
+    closed_for_reservation: 'Closed',
     blocked: 'Blocked',
     out_of_order: 'Out of order',
 };
@@ -31,6 +32,10 @@ const stateStyles: Record<LaneCardState, { accent: string; badge: string }> = {
     reserved: {
         accent: 'border-l-violet-500',
         badge: 'bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-300',
+    },
+    closed_for_reservation: {
+        accent: 'border-l-fuchsia-500',
+        badge: 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-500/20 dark:text-fuchsia-300',
     },
     blocked: {
         accent: 'border-l-neutral-400',
@@ -72,6 +77,13 @@ function LaneActivity({ lane, now }: { lane: LaneCardData; now: number }) {
                     Check-in closes in{' '}
                     <span className="font-medium text-foreground tabular-nums">
                         {formatCountdown(Date.parse(current.heldUntil) - now)}
+                    </span>
+                </p>
+            ) : state === 'closed_for_reservation' ? (
+                <p className="text-sm text-muted-foreground">
+                    Reservation at{' '}
+                    <span className="font-medium text-foreground tabular-nums">
+                        {formatTime(current.endsAt)}
                     </span>
                 </p>
             ) : state === 'reserved' ? (
@@ -132,7 +144,7 @@ export function LaneCard({ lane, now }: { lane: LaneCardData; now: number }) {
             <footer className="flex items-center justify-between gap-2 border-t pt-1.5">
                 <p className="truncate text-xs text-muted-foreground">
                     {lane.next
-                        ? `Next ${formatTime(lane.next.startsAt)} · ${lane.next.customerName ?? lane.next.note ?? 'Blocked'}`
+                        ? `${lane.next.isClosure ? 'Closes' : 'Next'} ${formatTime(lane.next.startsAt)} · ${lane.next.customerName ?? lane.next.note ?? 'Blocked'}`
                         : 'Nothing booked next'}
                 </p>
 

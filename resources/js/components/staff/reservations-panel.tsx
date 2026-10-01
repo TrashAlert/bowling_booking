@@ -1,8 +1,9 @@
-import { Form } from '@inertiajs/react';
+import { Form, Link } from '@inertiajs/react';
 import BookingCheckInController from '@/actions/App/Http/Controllers/Staff/BookingCheckInController';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatLanes, formatSessionLength, formatTime } from '@/lib/format';
+import { reservationsPage } from '@/lib/reservations';
 import type { ReservationRow } from '@/types';
 
 function Reservation({ row }: { row: ReservationRow }) {
@@ -55,7 +56,13 @@ export function ReservationsPanel({
             <h2 className="mb-3 flex items-baseline justify-between font-semibold">
                 Reservations
                 <span className="text-sm font-normal text-muted-foreground">
-                    Next 24 hours
+                    Next 24 hours ·{' '}
+                    <Link
+                        href={reservationsPage()}
+                        className="text-foreground underline underline-offset-4"
+                    >
+                        See all
+                    </Link>
                 </span>
             </h2>
 

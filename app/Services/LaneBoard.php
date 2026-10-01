@@ -33,7 +33,7 @@ class LaneBoard
      *     isOpen: bool,
      *     state: string,
      *     current: array{bookingId: int|null, customerName: string|null, partySize: int|null, startsAt: string, endsAt: string, heldUntil: string|null, note: string|null}|null,
-     *     next: array{startsAt: string, customerName: string|null, note: string|null}|null,
+     *     next: array{startsAt: string, customerName: string|null, note: string|null, isClosure: bool}|null,
      * }>
      */
     public function lanes(): array
@@ -45,7 +45,7 @@ class LaneBoard
             ->with(['allocations' => function (Relation $query) use ($now) {
                 $this->upcoming($query->getQuery(), $now)
                     ->orderBy('starts_at')
-                    ->with('booking.customer');
+                    ->with(['booking.customer', 'closedForBooking.customer']);
             }])
             ->get()
             ->map(function (Lane $lane) use ($now) {
@@ -60,8 +60,8 @@ class LaneBoard
                     'state' => $this->state($lane, $current)->value,
                     'current' => $current ? [
                         'bookingId' => $current->booking_id,
-                        'customerName' => $current->booking?->customer->name,
-                        'partySize' => $current->booking?->party_size,
+                        'customerName' => $this->party($current)?->customer->name,
+                        'partySize' => $this->party($current)?->party_size,
                         'startsAt' => $current->starts_at->toIso8601String(),
                         'endsAt' => $current->ends_at->toIso8601String(),
                         'heldUntil' => $current->held_until?->toIso8601String(),
@@ -69,8 +69,9 @@ class LaneBoard
                     ] : null,
                     'next' => $next ? [
                         'startsAt' => $next->starts_at->toIso8601String(),
-                        'customerName' => $next->booking?->customer->name,
+                        'customerName' => $this->party($next)?->customer->name,
                         'note' => $next->note,
+                        'isClosure' => $next->closed_for_booking_id !== null,
                     ] : null,
                 ];
             })
@@ -185,10 +186,17 @@ class LaneBoard
             ! $lane->isOpen() => LaneCardState::OutOfOrder,
             $current === null => LaneCardState::Free,
             $current->status === AllocationStatus::Held => LaneCardState::Held,
+            $current->closed_for_booking_id !== null => LaneCardState::ClosedForReservation,
             $current->booking === null => LaneCardState::Blocked,
             $current->booking->status === BookingStatus::Confirmed => LaneCardState::Reserved,
             default => LaneCardState::InPlay,
         };
+    }
+
+    // The booking an allocation is for: its own, or the reservation it keeps the lane empty for.
+    private function party(LaneAllocation $allocation): ?Booking
+    {
+        return $allocation->booking ?? $allocation->closedForBooking;
     }
 
     /**

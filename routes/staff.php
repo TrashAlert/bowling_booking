@@ -3,6 +3,7 @@
 use App\Http\Controllers\Staff\BoardController;
 use App\Http\Controllers\Staff\BookingCheckInController;
 use App\Http\Controllers\Staff\LaneController;
+use App\Http\Controllers\Staff\ReservationController;
 use App\Http\Controllers\Staff\WaitlistController;
 use Illuminate\Support\Facades\Route;
 
@@ -16,6 +17,11 @@ Route::middleware(['auth', 'verified', 'staff'])->prefix('staff')->name('staff.'
     Route::delete('waitlist/{entry}', [WaitlistController::class, 'destroy'])->name('waitlist.destroy');
 
     Route::post('bookings/{booking}/check-in', [BookingCheckInController::class, 'store'])->name('bookings.check-in');
+
+    Route::get('reservations', [ReservationController::class, 'index'])->name('reservations.index');
+    Route::post('reservations', [ReservationController::class, 'store'])->name('reservations.store');
+    Route::patch('reservations/{booking}', [ReservationController::class, 'update'])->name('reservations.update');
+    Route::delete('reservations/{booking}', [ReservationController::class, 'destroy'])->name('reservations.destroy');
 
     Route::patch('lanes/{lane}', [LaneController::class, 'update'])->name('lanes.update');
 });

@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Columns3, LayoutGrid } from 'lucide-react';
+import { CalendarClock, Columns3, LayoutGrid } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { board } from '@/routes/staff';
+import { index as reservations } from '@/routes/staff/reservations';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -29,6 +30,11 @@ const staffNavItems: NavItem[] = [
         title: 'Lane board',
         href: board(),
         icon: Columns3,
+    },
+    {
+        title: 'Reservations',
+        href: reservations(),
+        icon: CalendarClock,
     },
 ];
 

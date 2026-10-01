@@ -52,6 +52,9 @@ class BookingCleanup
                     $query->where('status', AllocationStatus::Active->value)
                         ->where('starts_at', '<=', $cutoff);
                 })
+                // Locked, so a check-in at the same moment either lands first
+                // (and the booking is no longer picked up here) or waits.
+                ->lockForUpdate()
                 ->pluck('id');
 
             if ($bookingIds->isEmpty()) {
@@ -67,5 +70,19 @@ class BookingCleanup
                 ->whereIn('id', $bookingIds)
                 ->update(['status' => BookingStatus::NoShow->value]);
         });
+    }
+
+    /**
+     * Sessions that have run their time: a checked-in booking with no lane
+     * time left becomes completed. Returns how many bookings were completed.
+     */
+    public function completeFinishedSessions(): int
+    {
+        return Booking::query()
+            ->where('status', BookingStatus::CheckedIn->value)
+            ->whereDoesntHave('allocations', function ($query) {
+                $query->occupying()->where('ends_at', '>', now());
+            })
+            ->update(['status' => BookingStatus::Completed->value]);
     }
 }

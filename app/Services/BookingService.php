@@ -10,9 +10,12 @@ use App\Exceptions\NoLaneAvailableException;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Lane;
+use App\Models\LaneAllocation;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 class BookingService
 {
@@ -82,6 +85,127 @@ class BookingService
     }
 
     /**
+     * Reserve the lanes staff chose, for $minutes from $startsAt.
+     *
+     * Unlike book(), the lanes are picked by hand and the party size doesn't
+     * decide how many there are. Each lane also stops taking anyone from the
+     * lead time before the start (see LaneAvailability::closesAt), so it must
+     * be empty from then until the session ends. Every lane is reserved, or
+     * none is.
+     *
+     * @param  Collection<int, Lane>  $lanes
+     *
+     * @throws NoLaneAvailableException naming the first lane that isn't free.
+     */
+    public function reserve(
+        Customer $customer,
+        Collection $lanes,
+        int $minutes,
+        int $partySize,
+        CarbonImmutable $startsAt,
+        ?string $notes = null,
+        BookingSource $source = BookingSource::Phone,
+    ): Booking {
+        return DB::transaction(function () use ($customer, $lanes, $minutes, $partySize, $startsAt, $notes, $source) {
+            $booking = Booking::create([
+                'customer_id' => $customer->id,
+                'minutes' => $minutes,
+                'party_size' => $partySize,
+                'source' => $source,
+                'status' => BookingStatus::Confirmed,
+                // Sessions aren't priced yet.
+                'total_cents' => 0,
+                'notes' => $notes,
+            ]);
+
+            $this->occupy($booking, $lanes, $startsAt, $minutes);
+
+            return $booking->load('allocations.lane');
+        });
+    }
+
+    // Reserve lanes for someone we have no customer record for yet.
+    public function reserveForNewCustomer(
+        string $name,
+        ?string $phone,
+        Collection $lanes,
+        int $minutes,
+        int $partySize,
+        CarbonImmutable $startsAt,
+        ?string $notes = null,
+    ): Booking {
+        return DB::transaction(function () use ($name, $phone, $lanes, $minutes, $partySize, $startsAt, $notes) {
+            $customer = Customer::create(['name' => $name, 'phone' => $phone]);
+
+            return $this->reserve($customer, $lanes, $minutes, $partySize, $startsAt, $notes);
+        });
+    }
+
+    /**
+     * Change a confirmed reservation: who it is for, when, how long, how many
+     * people and which lanes. If the new lanes aren't all free, nothing
+     * changes and the reservation stays exactly as it was.
+     *
+     * @param  Collection<int, Lane>  $lanes
+     *
+     * @throws InvalidStateException if the reservation is no longer confirmed.
+     * @throws NoLaneAvailableException naming the first lane that isn't free.
+     */
+    public function reschedule(
+        Booking $booking,
+        string $name,
+        ?string $phone,
+        Collection $lanes,
+        int $minutes,
+        int $partySize,
+        CarbonImmutable $startsAt,
+        ?string $notes = null,
+    ): Booking {
+        return DB::transaction(function () use ($booking, $name, $phone, $lanes, $minutes, $partySize, $startsAt, $notes) {
+            $booking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+
+            if ($booking->status !== BookingStatus::Confirmed) {
+                throw new InvalidStateException('Only a confirmed reservation can be changed.');
+            }
+
+            // The old rows go first so the reservation doesn't block itself.
+            // If a new lane turns out to be taken, the transaction puts them back.
+            $booking->allocations()->delete();
+            $booking->closures()->delete();
+
+            $booking->customer->update(['name' => $name, 'phone' => $phone]);
+            $booking->update(['minutes' => $minutes, 'party_size' => $partySize, 'notes' => $notes]);
+
+            $this->occupy($booking, $lanes, $startsAt, $minutes);
+
+            return $booking->load('allocations.lane');
+        });
+    }
+
+    /**
+     * Cancel a booking that hasn't started and free its lanes straight away.
+     *
+     * @throws InvalidStateException if the party has already arrived, or the booking is already over.
+     */
+    public function cancel(Booking $booking): Booking
+    {
+        return DB::transaction(function () use ($booking) {
+            $booking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+
+            if (! in_array($booking->status, [BookingStatus::Pending, BookingStatus::Confirmed], true)) {
+                throw new InvalidStateException('This booking can no longer be cancelled.');
+            }
+
+            $booking->allocations()->occupying()->update(['status' => AllocationStatus::Released->value]);
+            $booking->closures()->occupying()->update(['status' => AllocationStatus::Released->value]);
+
+            $booking->update(['status' => BookingStatus::Cancelled]);
+
+            return $booking;
+        });
+    }
+
+    /**
      * The party with a reservation has arrived: start their session, so the
      * booking is no longer treated as a no-show.
      *
@@ -100,6 +224,63 @@ class BookingService
 
             return $booking;
         });
+    }
+
+    /**
+     * Put a reservation on each of the chosen lanes: a row that closes the
+     * lane beforehand, then the session itself.
+     *
+     * @param  Collection<int, Lane>  $lanes
+     *
+     * @throws NoLaneAvailableException naming the first lane that isn't free.
+     */
+    private function occupy(Booking $booking, Collection $lanes, CarbonImmutable $startsAt, int $minutes): void
+    {
+        if ($lanes->isEmpty()) {
+            throw new InvalidArgumentException('A reservation needs at least one lane.');
+        }
+
+        // Times are saved as their own clock time, so make sure that clock is UTC.
+        $startsAt = $startsAt->utc();
+        $endsAt = $startsAt->addMinutes($minutes);
+        $closesAt = $this->availability->closesAt($startsAt);
+        $reserved = 0;
+
+        foreach ($lanes as $lane) {
+            if (! $lane->isOpen()) {
+                throw new NoLaneAvailableException($lanes->count(), $reserved, $lane->number);
+            }
+
+            try {
+                // A savepoint, so a refused insert leaves the outer transaction usable.
+                DB::transaction(function () use ($booking, $lane, $startsAt, $endsAt, $closesAt) {
+                    if ($closesAt < $startsAt) {
+                        LaneAllocation::create([
+                            'lane_id' => $lane->id,
+                            'closed_for_booking_id' => $booking->id,
+                            'starts_at' => $closesAt,
+                            'ends_at' => $startsAt,
+                            'status' => AllocationStatus::Active,
+                        ]);
+                    }
+
+                    $booking->allocations()->create([
+                        'lane_id' => $lane->id,
+                        'starts_at' => $startsAt,
+                        'ends_at' => $endsAt,
+                        'status' => AllocationStatus::Active,
+                    ]);
+                });
+            } catch (QueryException $e) {
+                if (($e->errorInfo[0] ?? null) === self::OVERLAP_ERROR) {
+                    throw new NoLaneAvailableException($lanes->count(), $reserved, $lane->number);
+                }
+
+                throw $e;
+            }
+
+            $reserved++;
+        }
     }
 
     /**

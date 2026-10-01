@@ -5,6 +5,7 @@ export type LaneCardState =
     | 'in_play'
     | 'held'
     | 'reserved'
+    | 'closed_for_reservation'
     | 'blocked'
     | 'out_of_order';
 
@@ -43,6 +44,8 @@ export type LaneCard = {
         startsAt: string;
         customerName: string | null;
         note: string | null;
+        // True when the lane closes then, ahead of a reservation, not for play.
+        isClosure: boolean;
     } | null;
 };
 
@@ -76,4 +79,33 @@ export type SessionRules = {
     stepMinutes: number;
     maxMinutes: number;
     maxPlayersPerLane: number;
+};
+
+// A reservation as listed on the Reservations page, whatever became of it.
+export type ReservationDetail = {
+    id: number;
+    customerName: string;
+    phone: string | null;
+    partySize: number;
+    minutes: number;
+    status: BookingStatus;
+    startsAt: string;
+    endsAt: string;
+    lanes: { id: number; number: number }[];
+    notes: string | null;
+};
+
+// A lane in the reservation form, and whether it is free for the chosen time.
+export type LaneOption = {
+    id: number;
+    number: number;
+    hasBumpers: boolean;
+    available: boolean;
+};
+
+export type ReservationLimits = {
+    maxPartySize: number;
+    // How long before a reservation its lanes close to everyone.
+    leadMinutes: number;
+    maxDaysAhead: number;
 };

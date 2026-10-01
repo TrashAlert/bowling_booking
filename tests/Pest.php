@@ -3,6 +3,7 @@
 use App\Enums\BookingSource;
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\Lane;
 use App\Models\WaitlistEntry;
 use App\Services\BookingService;
 use App\Services\WaitlistService;
@@ -67,6 +68,24 @@ function bookReservation(CarbonImmutable $startsAt, int $minutes = 60, int $part
         $partySize,
         $startsAt,
         BookingSource::Phone,
+    );
+}
+
+/**
+ * Reserve the given lanes the way staff do: picked by hand, each closed for
+ * the hour before the start.
+ *
+ * @param  Lane|array<int, Lane>  $lanes
+ */
+function reserveLanes(Lane|array $lanes, CarbonImmutable $startsAt, int $minutes = 60, int $partySize = 4, string $name = 'Reserved party'): Booking
+{
+    return app(BookingService::class)->reserveForNewCustomer(
+        $name,
+        '0123456789',
+        collect(is_array($lanes) ? $lanes : [$lanes]),
+        $minutes,
+        $partySize,
+        $startsAt,
     );
 }
 

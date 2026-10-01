@@ -43,6 +43,12 @@ class Booking extends Model
         return $this->hasMany(LaneAllocation::class);
     }
 
+    // The rows that keep a reservation's lanes empty in the hour before it starts.
+    public function closures(): HasMany
+    {
+        return $this->hasMany(LaneAllocation::class, 'closed_for_booking_id');
+    }
+
     // The waitlist entry this booking came from, if it was a walk-in.
     public function waitlistEntry(): HasOne
     {

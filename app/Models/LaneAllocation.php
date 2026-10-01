@@ -13,6 +13,7 @@ class LaneAllocation extends Model
     protected $fillable = [
         'lane_id',
         'booking_id',
+        'closed_for_booking_id',
         'starts_at',
         'ends_at',
         'status',
@@ -40,6 +41,12 @@ class LaneAllocation extends Model
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
+    }
+
+    // Set when this row keeps the lane empty in the hour before a reservation.
+    public function closedForBooking(): BelongsTo
+    {
+        return $this->belongsTo(Booking::class, 'closed_for_booking_id');
     }
 
     // Allocations that still take up their lane (anything not released).

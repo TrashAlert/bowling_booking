@@ -16,6 +16,9 @@ enum LaneCardState: string
     // A reservation has started but the party hasn't checked in yet.
     case Reserved = 'reserved';
 
+    // Kept empty in the hour before a reservation starts on this lane.
+    case ClosedForReservation = 'closed_for_reservation';
+
     // Blocked with no booking, e.g. a league night or maintenance.
     case Blocked = 'blocked';
 

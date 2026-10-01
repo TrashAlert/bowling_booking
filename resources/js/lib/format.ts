@@ -3,6 +3,26 @@ const timeFormat = new Intl.DateTimeFormat(undefined, {
     minute: '2-digit',
 });
 
+const dateFormat = new Intl.DateTimeFormat(undefined, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+});
+
+/**
+ * Show a calendar date ("2026-10-05") in words, e.g. "Monday, 5 October".
+ */
+export function formatDate(date: string): string {
+    return dateFormat.format(new Date(`${date}T12:00`));
+}
+
+/**
+ * Show a time of day ("19:30") the way the viewer's device writes times.
+ */
+export function formatTimeOfDay(time: string): string {
+    return timeFormat.format(new Date(`2000-01-01T${time}`));
+}
+
 /**
  * Show a UTC timestamp as a clock time in the viewer's own time zone.
  */
