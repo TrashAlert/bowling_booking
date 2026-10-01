@@ -96,6 +96,7 @@ export default function Board({
                         <ReservationsPanel
                             reservations={reservations}
                             laneOptions={laneOptions}
+                            now={now}
                         />
                     </div>
                 </div>

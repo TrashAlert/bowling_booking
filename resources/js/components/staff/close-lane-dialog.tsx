@@ -149,7 +149,11 @@ export function CloseLaneDialog({
                                 >
                                     Cancel
                                 </Button>
-                                <Button type="submit" disabled={processing}>
+                                <Button
+                                    type="submit"
+                                    variant="destructive"
+                                    disabled={processing}
+                                >
                                     Close lane
                                 </Button>
                             </DialogFooter>

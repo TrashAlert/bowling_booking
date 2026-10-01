@@ -12,6 +12,7 @@ use App\Models\Customer;
 use App\Models\Lane;
 use App\Models\LaneAllocation;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterval;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -382,7 +383,11 @@ class BookingService
      * The party with a reservation has arrived: start their session, so the
      * booking is no longer treated as a no-show.
      *
-     * @throws InvalidStateException if the booking isn't a confirmed reservation, or one of its lanes is closed.
+     * Check-in opens a set time before the start (see config/bowling.php).
+     * Once checked in, a reservation can't be changed or cancelled, so one
+     * that is still far off is refused.
+     *
+     * @throws InvalidStateException if the booking isn't a confirmed reservation, it is too early, or one of its lanes is closed.
      */
     public function checkIn(Booking $booking): Booking
     {
@@ -391,6 +396,15 @@ class BookingService
 
             if ($booking->status !== BookingStatus::Confirmed) {
                 throw new InvalidStateException('Only a confirmed reservation can be checked in.');
+            }
+
+            $opensMinutesBefore = config('bowling.check_in_opens_minutes');
+            $startsAt = $booking->allocations()->occupying()->oldest('starts_at')->value('starts_at');
+
+            if ($startsAt?->subMinutes($opensMinutesBefore)->isFuture()) {
+                throw new InvalidStateException(__('It is too early to check in this reservation. Check-in opens :time before the start.', [
+                    'time' => CarbonInterval::minutes($opensMinutesBefore)->cascade()->forHumans(),
+                ]));
             }
 
             $closed = $this->closedLaneNumbers($booking);

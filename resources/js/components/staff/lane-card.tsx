@@ -313,6 +313,7 @@ export function LaneCard({
                             </DropdownMenuItem>
                         ) : (
                             <DropdownMenuItem
+                                variant="destructive"
                                 onSelect={() => setDialog('close')}
                             >
                                 Close lane

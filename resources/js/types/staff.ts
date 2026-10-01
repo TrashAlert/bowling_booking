@@ -102,6 +102,8 @@ export type ReservationRow = {
     status: Extract<BookingStatus, 'confirmed' | 'checked_in'>;
     startsAt: string;
     endsAt: string;
+    // Check-in is refused before this moment.
+    checkInOpensAt: string;
     laneNumbers: number[];
     lanes: { id: number; number: number }[];
     // Lanes of a reservation still to check in that have been marked out of
@@ -126,6 +128,8 @@ export type ReservationDetail = {
     status: BookingStatus;
     startsAt: string;
     endsAt: string;
+    // Check-in is refused before this moment.
+    checkInOpensAt: string;
     lanes: { id: number; number: number }[];
     notes: string | null;
     closedLaneNumbers: number[];

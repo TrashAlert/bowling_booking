@@ -1,13 +1,14 @@
-import { Form, Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import BookingCheckInController from '@/actions/App/Http/Controllers/Staff/BookingCheckInController';
 import { CancelReservationDialog } from '@/components/staff/cancel-reservation-dialog';
+import { CheckInButton } from '@/components/staff/check-in-button';
 import { MoveLanesDialog } from '@/components/staff/move-lanes-dialog';
 import { ReservationFormDialog } from '@/components/staff/reservation-form-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useServerClock } from '@/hooks/use-server-clock';
 import { addDays, browserTimeZone } from '@/lib/dates';
 import {
     formatDate,
@@ -32,6 +33,7 @@ type Props = {
     session: SessionRules;
     limits: ReservationLimits;
     laneOptions?: LaneOption[];
+    serverNow: string;
 };
 
 const statusLabels: Record<BookingStatus, string> = {
@@ -79,11 +81,13 @@ type OpenDialog =
 
 function ReservationRow({
     row,
+    now,
     onChange,
     onCancel,
     onMove,
 }: {
     row: ReservationDetail;
+    now: number;
     onChange: () => void;
     onCancel: () => void;
     onMove: () => void;
@@ -132,7 +136,7 @@ function ReservationRow({
 
             {row.status === 'confirmed' && (
                 <div className="flex shrink-0 gap-2">
-                    <Button variant="ghost" size="sm" onClick={onCancel}>
+                    <Button variant="destructive" size="sm" onClick={onCancel}>
                         Cancel
                     </Button>
                     <Button variant="outline" size="sm" onClick={onChange}>
@@ -143,16 +147,7 @@ function ReservationRow({
                             Move lanes
                         </Button>
                     ) : (
-                        <Form
-                            {...BookingCheckInController.store.form(row.id)}
-                            options={{ preserveScroll: true }}
-                        >
-                            {({ processing }) => (
-                                <Button size="sm" disabled={processing}>
-                                    Check in
-                                </Button>
-                            )}
-                        </Form>
+                        <CheckInButton reservation={row} now={now} />
                     )}
                 </div>
             )}
@@ -166,9 +161,11 @@ export default function Reservations({
     session,
     limits,
     laneOptions,
+    serverNow,
 }: Props) {
     const [filter, setFilter] = useState<Filter>('all');
     const [dialog, setDialog] = useState<OpenDialog | null>(null);
+    const now = useServerClock(serverNow);
 
     // The server can't know this device's time zone on the first visit, so it
     // guessed the day in UTC. Ask again with the zone.
@@ -265,6 +262,7 @@ export default function Reservations({
                             <ReservationRow
                                 key={row.id}
                                 row={row}
+                                now={now}
                                 onChange={() =>
                                     setDialog({
                                         kind: 'change',

@@ -28,6 +28,7 @@ test('a day lists its reservations earliest first with their lanes', function ()
             'status' => 'confirmed',
             'startsAt' => '2026-10-01T13:00:00+00:00',
             'endsAt' => '2026-10-01T14:30:00+00:00',
+            'checkInOpensAt' => '2026-10-01T12:00:00+00:00',
             'lanes' => [
                 ['id' => $two->id, 'number' => 2],
                 ['id' => $four->id, 'number' => 4],

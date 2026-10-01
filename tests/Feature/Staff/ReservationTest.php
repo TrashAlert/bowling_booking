@@ -54,6 +54,7 @@ describe('the reservations page', function () {
                 ->etc())
             ->where('session', ['stepMinutes' => 30, 'maxMinutes' => 240, 'maxPlayersPerLane' => 6])
             ->where('limits', ['maxPartySize' => 200, 'leadMinutes' => 60, 'maxDaysAhead' => 90])
+            ->where('serverNow', '2026-10-01T10:00:00+00:00')
             ->missing('laneOptions'));
         $sameDay->assertInertia(fn (Assert $page) => $page->has('reservations', 0));
     });

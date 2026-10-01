@@ -115,6 +115,35 @@ test('checking in a confirmed reservation marks it as checked in', function () {
         ->and($booking->allocations->first()->status)->toBe(AllocationStatus::Active);
 });
 
+test('a reservation cannot be checked in before check-in opens', function () {
+    $booking = reserveLanes(Lane::factory()->create(), now()->addMinutes(61));
+
+    expect(fn () => app(BookingService::class)->checkIn($booking))
+        ->toThrow(InvalidStateException::class, 'It is too early to check in this reservation. Check-in opens 1 hour before the start.');
+
+    expect($booking->refresh()->status)->toBe(BookingStatus::Confirmed);
+});
+
+test('a reservation can be checked in from an hour before it starts', function () {
+    $booking = reserveLanes(Lane::factory()->create(), now()->addMinutes(60));
+
+    $checkedIn = app(BookingService::class)->checkIn($booking);
+
+    expect($checkedIn->status)->toBe(BookingStatus::CheckedIn);
+});
+
+test('how early check-in opens comes from the config', function () {
+    config(['bowling.check_in_opens_minutes' => 15]);
+    $booking = reserveLanes(Lane::factory()->create(), now()->addMinutes(30));
+
+    expect(fn () => app(BookingService::class)->checkIn($booking))
+        ->toThrow(InvalidStateException::class, 'It is too early to check in this reservation. Check-in opens 15 minutes before the start.');
+
+    $this->travel(15)->minutes();
+
+    expect(app(BookingService::class)->checkIn($booking)->status)->toBe(BookingStatus::CheckedIn);
+});
+
 test('a booking that is not a confirmed reservation cannot be checked in', function (BookingStatus $status) {
     Lane::factory()->create();
     $booking = bookReservation(now());

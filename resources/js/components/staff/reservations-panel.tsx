@@ -1,6 +1,6 @@
-import { Form, Link } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import { useState } from 'react';
-import BookingCheckInController from '@/actions/App/Http/Controllers/Staff/BookingCheckInController';
+import { CheckInButton } from '@/components/staff/check-in-button';
 import { MoveLanesDialog } from '@/components/staff/move-lanes-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,9 +11,11 @@ import type { LaneOption, ReservationRow } from '@/types';
 
 function Reservation({
     row,
+    now,
     onMove,
 }: {
     row: ReservationRow;
+    now: number;
     onMove: () => void;
 }) {
     // A group can't check in while one of its lanes is closed.
@@ -51,16 +53,7 @@ function Reservation({
                     Move lanes
                 </Button>
             ) : row.status === 'confirmed' ? (
-                <Form
-                    {...BookingCheckInController.store.form(row.id)}
-                    options={{ preserveScroll: true }}
-                >
-                    {({ processing }) => (
-                        <Button size="sm" disabled={processing}>
-                            Check in
-                        </Button>
-                    )}
-                </Form>
+                <CheckInButton reservation={row} now={now} />
             ) : (
                 <Badge variant="secondary">Checked in</Badge>
             )}
@@ -71,9 +64,11 @@ function Reservation({
 export function ReservationsPanel({
     reservations,
     laneOptions,
+    now,
 }: {
     reservations: ReservationRow[];
     laneOptions: LaneOption[] | undefined;
+    now: number;
 }) {
     const [movingId, setMovingId] = useState<number | null>(null);
 
@@ -106,6 +101,7 @@ export function ReservationsPanel({
                         <Reservation
                             key={row.id}
                             row={row}
+                            now={now}
                             onMove={() => setMovingId(row.id)}
                         />
                     ))}

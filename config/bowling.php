@@ -23,6 +23,10 @@ return [
     // they are sure to be empty on time.
     'reservation_lead_minutes' => (int) env('BOWLING_RESERVATION_LEAD_MINUTES', 60),
 
+    // How long before a reservation starts its party can be checked in.
+    // Earlier than that, check-in is refused.
+    'check_in_opens_minutes' => (int) env('BOWLING_CHECK_IN_OPENS_MINUTES', 60),
+
     // How far ahead a reservation can be made.
     'reservation_max_days_ahead' => (int) env('BOWLING_RESERVATION_MAX_DAYS_AHEAD', 90),
 

@@ -174,6 +174,7 @@ class LaneBoard
      *     status: string,
      *     startsAt: string,
      *     endsAt: string,
+     *     checkInOpensAt: string,
      *     laneNumbers: list<int>,
      *     lanes: list<array{id: int, number: int}>,
      *     closedLaneNumbers: list<int>,
@@ -203,6 +204,10 @@ class LaneBoard
                 'status' => $booking->status->value,
                 'startsAt' => $booking->allocations->min('starts_at')->toIso8601String(),
                 'endsAt' => $booking->allocations->max('ends_at')->toIso8601String(),
+                // Check-in is refused before this moment.
+                'checkInOpensAt' => $booking->allocations->min('starts_at')
+                    ->subMinutes(config('bowling.check_in_opens_minutes'))
+                    ->toIso8601String(),
                 'laneNumbers' => $booking->allocations->pluck('lane.number')->sort()->values()->all(),
                 'lanes' => $booking->allocations
                     ->sortBy('lane.number')

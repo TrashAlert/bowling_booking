@@ -53,6 +53,7 @@ class ReservationController extends Controller
                 'maxDaysAhead' => config('bowling.reservation_max_days_ahead'),
             ],
             'laneOptions' => $this->laneOptions($request, $availability),
+            'serverNow' => now()->toIso8601String(),
         ]);
     }
 

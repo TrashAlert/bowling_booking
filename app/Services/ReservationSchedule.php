@@ -29,6 +29,7 @@ class ReservationSchedule
      *     status: string,
      *     startsAt: string,
      *     endsAt: string,
+     *     checkInOpensAt: string,
      *     lanes: list<array{id: int, number: int}>,
      *     notes: string|null,
      *     closedLaneNumbers: list<int>,
@@ -60,6 +61,10 @@ class ReservationSchedule
                 'status' => $booking->status->value,
                 'startsAt' => $booking->allocations->min('starts_at')->toIso8601String(),
                 'endsAt' => $booking->allocations->max('ends_at')->toIso8601String(),
+                // Check-in is refused before this moment.
+                'checkInOpensAt' => $booking->allocations->min('starts_at')
+                    ->subMinutes(config('bowling.check_in_opens_minutes'))
+                    ->toIso8601String(),
                 'lanes' => $booking->allocations
                     ->sortBy('lane.number')
                     ->map(fn (LaneAllocation $allocation) => [

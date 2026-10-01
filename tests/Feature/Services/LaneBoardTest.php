@@ -294,6 +294,7 @@ test('reservations are listed earliest first and leave out walk-ins', function (
             'status' => 'confirmed',
             'startsAt' => '2026-10-01T19:00:00+00:00',
             'endsAt' => '2026-10-01T20:00:00+00:00',
+            'checkInOpensAt' => '2026-10-01T18:00:00+00:00',
         ])
         ->and($reservations[0]['laneNumbers'])->toHaveCount(1);
 });
