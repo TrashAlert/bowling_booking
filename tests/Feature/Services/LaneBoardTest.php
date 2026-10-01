@@ -133,6 +133,50 @@ test('the next allocation is shown alongside the current one', function () {
         ]);
 });
 
+test('a session in play can be extended as far as nothing else is booked', function () {
+    Lane::factory()->create();
+    $entry = joinWaitlist(minutes: 60);
+    app(WaitlistService::class)->callNextParties();
+    app(WaitlistService::class)->seat($entry);
+
+    $current = app(LaneBoard::class)->lanes()[0]['current'];
+
+    expect($current['canExtend'])->toBeTrue()
+        ->and($current['extendableMinutes'])->toBeNull();
+});
+
+test('a party on several lanes can only be extended until the first of them is booked again', function () {
+    $one = Lane::factory()->create(['number' => 1]);
+    $two = Lane::factory()->create(['number' => 2]);
+    $booking = reserveLanes([$one, $two], now(), minutes: 60);
+    app(BookingService::class)->checkIn($booking);
+    // Lane 2 closes at 19:30 for this one, half an hour after the party ends.
+    reserveLanes($two, now()->addMinutes(150));
+    // Lane 1 is not booked again until 21:00.
+    reserveLanes($one, now()->addHours(4));
+
+    $cards = app(LaneBoard::class)->lanes();
+
+    expect($cards[0]['current'])->toMatchArray(['canExtend' => true, 'extendableMinutes' => 30])
+        ->and($cards[1]['current'])->toMatchArray(['canExtend' => true, 'extendableMinutes' => 30]);
+});
+
+test('a lane that is held, reserved or closed offers no extension', function () {
+    $held = Lane::factory()->create(['number' => 1]);
+    joinWaitlist();
+    app(WaitlistService::class)->callNextParties();
+    $reserved = Lane::factory()->create(['number' => 2]);
+    reserveLanes($reserved, now());
+    $closed = Lane::factory()->create(['number' => 3]);
+    reserveLanes($closed, now()->addMinutes(30));
+
+    $cards = app(LaneBoard::class)->lanes();
+
+    expect(array_column($cards, 'state'))->toBe(['held', 'reserved', 'closed_for_reservation'])
+        ->and(array_map(fn (array $card) => $card['current']['canExtend'], $cards))->toBe([false, false, false])
+        ->and($held->refresh()->isOpen())->toBeTrue();
+});
+
 test('a lane is closed in the hour before a reservation and shows who it is for', function () {
     $lane = Lane::factory()->create();
     $booking = reserveLanes($lane, now()->addMinutes(30), partySize: 14, name: 'Farah');

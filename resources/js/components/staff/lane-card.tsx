@@ -1,10 +1,15 @@
 import { Form } from '@inertiajs/react';
 import LaneController from '@/actions/App/Http/Controllers/Staff/LaneController';
+import { ExtendSessionDialog } from '@/components/staff/extend-session-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatCountdown, formatMinutes, formatTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import type { LaneCard as LaneCardData, LaneCardState } from '@/types';
+import type {
+    LaneCard as LaneCardData,
+    LaneCardState,
+    SessionRules,
+} from '@/types';
 
 const stateLabels: Record<LaneCardState, string> = {
     free: 'Free',
@@ -105,7 +110,20 @@ function LaneActivity({ lane, now }: { lane: LaneCardData; now: number }) {
     );
 }
 
-export function LaneCard({ lane, now }: { lane: LaneCardData; now: number }) {
+export function LaneCard({
+    lane,
+    now,
+    session,
+}: {
+    lane: LaneCardData;
+    now: number;
+    session: SessionRules;
+}) {
+    // Only a party that is playing right now can be given more time.
+    const canExtend =
+        lane.current?.canExtend === true &&
+        Date.parse(lane.current.endsAt) > now;
+
     return (
         <article
             className={cn(
@@ -142,15 +160,20 @@ export function LaneCard({ lane, now }: { lane: LaneCardData; now: number }) {
             </div>
 
             <footer className="flex items-center justify-between gap-2 border-t pt-1.5">
-                <p className="truncate text-xs text-muted-foreground">
+                <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                     {lane.next
                         ? `${lane.next.isClosure ? 'Closes' : 'Next'} ${formatTime(lane.next.startsAt)} · ${lane.next.customerName ?? lane.next.note ?? 'Blocked'}`
                         : 'Nothing booked next'}
                 </p>
 
+                {canExtend && (
+                    <ExtendSessionDialog lane={lane} session={session} />
+                )}
+
                 <Form
                     {...LaneController.update.form(lane.id)}
                     options={{ preserveScroll: true }}
+                    className="shrink-0"
                 >
                     {({ processing }) => (
                         <>
@@ -163,9 +186,14 @@ export function LaneCard({ lane, now }: { lane: LaneCardData; now: number }) {
                                 variant="ghost"
                                 size="sm"
                                 disabled={processing}
+                                aria-label={
+                                    lane.isOpen
+                                        ? `Close lane ${lane.number}`
+                                        : `Reopen lane ${lane.number}`
+                                }
                                 className="h-7 px-2 text-xs"
                             >
-                                {lane.isOpen ? 'Close lane' : 'Reopen'}
+                                {lane.isOpen ? 'Close' : 'Reopen'}
                             </Button>
                         </>
                     )}

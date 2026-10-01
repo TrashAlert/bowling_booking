@@ -74,7 +74,12 @@ export default function Board({
                     <section aria-label="Lanes" className="@container">
                         <div className="grid grid-cols-1 gap-3 @md:grid-cols-2 @2xl:grid-cols-3 @5xl:grid-cols-4">
                             {lanes.map((lane) => (
-                                <LaneCard key={lane.id} lane={lane} now={now} />
+                                <LaneCard
+                                    key={lane.id}
+                                    lane={lane}
+                                    now={now}
+                                    session={session}
+                                />
                             ))}
                         </div>
                     </section>

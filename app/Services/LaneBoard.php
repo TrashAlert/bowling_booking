@@ -32,7 +32,7 @@ class LaneBoard
      *     hasBumpers: bool,
      *     isOpen: bool,
      *     state: string,
-     *     current: array{bookingId: int|null, customerName: string|null, partySize: int|null, startsAt: string, endsAt: string, heldUntil: string|null, note: string|null}|null,
+     *     current: array{bookingId: int|null, customerName: string|null, partySize: int|null, startsAt: string, endsAt: string, heldUntil: string|null, note: string|null, canExtend: bool, extendableMinutes: int|null}|null,
      *     next: array{startsAt: string, customerName: string|null, note: string|null, isClosure: bool}|null,
      * }>
      */
@@ -40,17 +40,35 @@ class LaneBoard
     {
         $now = now();
 
-        return Lane::query()
+        $lanes = Lane::query()
             ->orderBy('number')
             ->with(['allocations' => function (Relation $query) use ($now) {
                 $this->upcoming($query->getQuery(), $now)
                     ->orderBy('starts_at')
                     ->with(['booking.customer', 'closedForBooking.customer']);
             }])
-            ->get()
-            ->map(function (Lane $lane) use ($now) {
-                $current = $lane->allocations->first(fn (LaneAllocation $allocation) => $allocation->starts_at <= $now);
-                $next = $lane->allocations->first(fn (LaneAllocation $allocation) => $allocation->starts_at > $now);
+            ->get();
+
+        $currentOn = fn (Lane $lane) => $lane->allocations->first(fn (LaneAllocation $allocation) => $allocation->starts_at <= $now);
+        $nextOn = fn (Lane $lane) => $lane->allocations->first(fn (LaneAllocation $allocation) => $allocation->starts_at > $now);
+
+        // A party on several lanes can only be extended as far as the lane
+        // that is booked again soonest, so find that moment per booking.
+        $bookedAgainAt = [];
+
+        foreach ($lanes as $lane) {
+            $bookingId = $currentOn($lane)?->booking_id;
+            $following = $nextOn($lane)?->starts_at->getTimestamp();
+
+            if ($bookingId !== null && $following !== null) {
+                $bookedAgainAt[$bookingId] = min($bookedAgainAt[$bookingId] ?? $following, $following);
+            }
+        }
+
+        return $lanes
+            ->map(function (Lane $lane) use ($currentOn, $nextOn, $bookedAgainAt) {
+                $current = $currentOn($lane);
+                $next = $nextOn($lane);
 
                 return [
                     'id' => $lane->id,
@@ -66,6 +84,10 @@ class LaneBoard
                         'endsAt' => $current->ends_at->toIso8601String(),
                         'heldUntil' => $current->held_until?->toIso8601String(),
                         'note' => $current->note,
+                        'canExtend' => $this->isRunningSession($current),
+                        'extendableMinutes' => $this->isRunningSession($current)
+                            ? $this->roomToExtend($current, $bookedAgainAt[$current->booking_id] ?? null)
+                            : null,
                     ] : null,
                     'next' => $next ? [
                         'startsAt' => $next->starts_at->toIso8601String(),
@@ -191,6 +213,30 @@ class LaneBoard
             $current->booking->status === BookingStatus::Confirmed => LaneCardState::Reserved,
             default => LaneCardState::InPlay,
         };
+    }
+
+    // A party that has checked in and is playing: the only kind of session that can be extended.
+    private function isRunningSession(LaneAllocation $allocation): bool
+    {
+        return $allocation->status === AllocationStatus::Active
+            && $allocation->booking?->status === BookingStatus::CheckedIn;
+    }
+
+    /**
+     * How many more minutes a session could be given, in whole session steps,
+     * before one of its lanes is booked again. Null means nothing is booked
+     * after it within the time the board looks ahead.
+     */
+    private function roomToExtend(LaneAllocation $allocation, ?int $bookedAgainAt): ?int
+    {
+        if ($bookedAgainAt === null) {
+            return null;
+        }
+
+        $step = config('bowling.session_step_minutes');
+        $freeMinutes = max(0, intdiv($bookedAgainAt - $allocation->ends_at->getTimestamp(), 60));
+
+        return intdiv($freeMinutes, $step) * $step;
     }
 
     // The booking an allocation is for: its own, or the reservation it keeps the lane empty for.

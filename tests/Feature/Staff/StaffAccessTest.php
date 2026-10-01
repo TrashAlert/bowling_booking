@@ -27,6 +27,11 @@ test('users without a role are forbidden from every staff endpoint', function (s
 
         return route('staff.bookings.check-in', bookReservation(now()));
     }],
+    'extend a session' => ['post', function () {
+        Lane::factory()->create();
+
+        return route('staff.bookings.extend', bookReservation(now()));
+    }],
     'toggle lane' => ['patch', fn () => route('staff.lanes.update', Lane::factory()->create())],
     'list reservations' => ['get', fn () => route('staff.reservations.index')],
     'make a reservation' => ['post', fn () => route('staff.reservations.store')],

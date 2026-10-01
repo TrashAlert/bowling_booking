@@ -206,6 +206,53 @@ class BookingService
     }
 
     /**
+     * Give a party that is playing $minutes more on every lane it has.
+     *
+     * Only a session that is under way can be extended: the party has checked
+     * in and its time hasn't run out. Every lane must be free for the extra
+     * time, which also keeps it clear of the hour a lane is closed before a
+     * reservation. If one lane can't be extended, none is.
+     *
+     * @throws InvalidStateException if the session hasn't started or has already ended.
+     * @throws NoLaneAvailableException naming the first lane that is booked too soon after.
+     */
+    public function extend(Booking $booking, int $minutes): Booking
+    {
+        return DB::transaction(function () use ($booking, $minutes) {
+            $booking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+
+            $allocations = $booking->allocations()
+                ->where('status', AllocationStatus::Active->value)
+                ->where('ends_at', '>', now())
+                ->with('lane')
+                ->get();
+
+            if ($booking->status !== BookingStatus::CheckedIn || $allocations->isEmpty()) {
+                throw new InvalidStateException('Only a session that is still running can be extended.');
+            }
+
+            foreach ($allocations->sortBy('lane.number')->values() as $extended => $allocation) {
+                try {
+                    // A savepoint, so a refused update leaves the outer transaction usable.
+                    DB::transaction(fn () => $allocation->update([
+                        'ends_at' => $allocation->ends_at->addMinutes($minutes),
+                    ]));
+                } catch (QueryException $e) {
+                    if (($e->errorInfo[0] ?? null) === self::OVERLAP_ERROR) {
+                        throw new NoLaneAvailableException($allocations->count(), $extended, $allocation->lane->number);
+                    }
+
+                    throw $e;
+                }
+            }
+
+            $booking->update(['minutes' => $booking->minutes + $minutes]);
+
+            return $booking->load('allocations.lane');
+        });
+    }
+
+    /**
      * The party with a reservation has arrived: start their session, so the
      * booking is no longer treated as a no-show.
      *

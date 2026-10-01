@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Staff\BoardController;
 use App\Http\Controllers\Staff\BookingCheckInController;
+use App\Http\Controllers\Staff\BookingExtensionController;
 use App\Http\Controllers\Staff\LaneController;
 use App\Http\Controllers\Staff\ReservationController;
 use App\Http\Controllers\Staff\WaitlistController;
@@ -17,6 +18,7 @@ Route::middleware(['auth', 'verified', 'staff'])->prefix('staff')->name('staff.'
     Route::delete('waitlist/{entry}', [WaitlistController::class, 'destroy'])->name('waitlist.destroy');
 
     Route::post('bookings/{booking}/check-in', [BookingCheckInController::class, 'store'])->name('bookings.check-in');
+    Route::post('bookings/{booking}/extensions', [BookingExtensionController::class, 'store'])->name('bookings.extend');
 
     Route::get('reservations', [ReservationController::class, 'index'])->name('reservations.index');
     Route::post('reservations', [ReservationController::class, 'store'])->name('reservations.store');

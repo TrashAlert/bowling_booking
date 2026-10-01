@@ -25,16 +25,19 @@ export function defaultSessionLength(session: SessionRules): number {
 /**
  * Buttons for choosing how long a session lasts, submitted as "minutes".
  * Pass value and onChange when the form needs to react to the choice;
- * leave them out and it keeps its own state.
+ * leave them out and it keeps its own state. Lengths above maxMinutes are
+ * shown but can't be chosen.
  */
 export function SessionLengthPicker({
     session,
     value,
     onChange,
+    maxMinutes,
 }: {
     session: SessionRules;
     value?: number;
     onChange?: (minutes: number) => void;
+    maxMinutes?: number;
 }) {
     const initial = defaultSessionLength(session);
 
@@ -43,13 +46,16 @@ export function SessionLengthPicker({
             {sessionLengths(session).map((minutes) => (
                 <label
                     key={minutes}
-                    className="flex h-11 cursor-pointer items-center justify-center rounded-lg border text-sm font-medium tabular-nums has-checked:border-primary has-checked:bg-primary has-checked:text-primary-foreground has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50"
+                    className="flex h-11 cursor-pointer items-center justify-center rounded-lg border text-sm font-medium tabular-nums has-checked:border-primary has-checked:bg-primary has-checked:text-primary-foreground has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50 has-disabled:cursor-not-allowed has-disabled:border-dashed has-disabled:text-muted-foreground"
                 >
                     <input
                         type="radio"
                         name="minutes"
                         value={minutes}
                         required
+                        disabled={
+                            maxMinutes !== undefined && minutes > maxMinutes
+                        }
                         className="sr-only"
                         {...(value === undefined
                             ? { defaultChecked: minutes === initial }

@@ -39,6 +39,11 @@ export type LaneCard = {
         endsAt: string;
         heldUntil: string | null;
         note: string | null;
+        // True while a checked-in party is still playing on this lane.
+        canExtend: boolean;
+        // How much longer it could play before a lane of its is booked again;
+        // null when nothing is booked after it.
+        extendableMinutes: number | null;
     } | null;
     next: {
         startsAt: string;
