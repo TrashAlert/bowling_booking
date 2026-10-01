@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\CreateStaffAccount;
 use App\Concerns\ProfileValidationRules;
 use App\Enums\UserRole;
-use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Console\PromptsForMissingInput;
 use Illuminate\Support\Facades\Validator;
@@ -23,11 +23,11 @@ class CreateStaffUser extends Command implements PromptsForMissingInput
 
     protected $description = 'Create a user who can log in to the staff area';
 
-    public function handle(): int
+    public function handle(CreateStaffAccount $createStaffAccount): int
     {
         $input = [
             'name' => $this->argument('name'),
-            // Fortify lowercases the email at login, so it must be stored that way.
+            // Lowercased here too, so the "already taken" check matches what is stored.
             'email' => Str::lower($this->argument('email')),
             'password' => $this->option('password') ?? $this->secret('Password'),
         ];
@@ -47,15 +47,9 @@ class CreateStaffUser extends Command implements PromptsForMissingInput
 
         $role = $this->option('admin') ? UserRole::Admin : UserRole::Staff;
 
-        // Staff are created by someone with server access, so their email
-        // address is trusted and they can log in straight away.
-        User::forceCreate([
-            ...$input,
-            'role' => $role,
-            'email_verified_at' => now(),
-        ]);
+        $user = $createStaffAccount->handle($input['name'], $input['email'], $input['password'], $role);
 
-        $this->info("Created {$role->value} user {$input['email']}.");
+        $this->info("Created {$role->value} user {$user->email}.");
 
         return self::SUCCESS;
     }

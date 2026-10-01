@@ -17,3 +17,8 @@ php artisan staff:create "Olivia Owner" olivia@example.com --admin
 For scripted setups, pass the password with `--password=...` instead of typing it.
 
 Only users with the `staff` or `admin` role can open pages under `/staff`. Admins can do everything staff can.
+
+Once there is an admin, the rest can be done in the app. Under **Settings**, admins also see:
+
+- **Lanes**: set how many lanes the venue has.
+- **Users**: add, edit and remove users, and reset their passwords.

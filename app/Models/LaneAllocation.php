@@ -30,9 +30,10 @@ class LaneAllocation extends Model
         ];
     }
 
+    // Includes lanes that have since been removed, so history stays readable.
     public function lane(): BelongsTo
     {
-        return $this->belongsTo(Lane::class);
+        return $this->belongsTo(Lane::class)->withTrashed();
     }
 
     // Empty for league nights and maintenance blocks.

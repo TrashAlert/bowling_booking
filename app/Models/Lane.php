@@ -7,11 +7,15 @@ use Database\Factories\LaneFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Lane extends Model
 {
     /** @use HasFactory<LaneFactory> */
     use HasFactory;
+
+    // A removed lane is only hidden, so its past bookings keep their lane.
+    use SoftDeletes;
 
     protected $fillable = ['number', 'has_bumpers', 'status'];
 

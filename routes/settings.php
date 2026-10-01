@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Settings\LaneController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
+use App\Http\Controllers\Settings\UserController;
 use Illuminate\Auth\Middleware\RequirePassword;
 use Illuminate\Support\Facades\Route;
 
@@ -24,4 +26,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('user-password.update');
 
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
+});
+
+Route::middleware(['auth', 'verified', 'admin'])->group(function () {
+    Route::get('settings/lanes', [LaneController::class, 'edit'])->name('lanes.edit');
+    Route::put('settings/lanes', [LaneController::class, 'update'])->name('lanes.update');
+
+    Route::get('settings/users', [UserController::class, 'index'])->name('users.index');
+    Route::post('settings/users', [UserController::class, 'store'])->name('users.store');
+    Route::patch('settings/users/{user}', [UserController::class, 'update'])->name('users.update');
+    Route::delete('settings/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 });

@@ -17,6 +17,14 @@ export type Auth = {
     user: User;
 };
 
+// A user as listed on the admin's Users settings page.
+export type ManagedUser = {
+    id: number;
+    name: string;
+    email: string;
+    role: UserRole | null;
+};
+
 export type TwoFactorSetupData = {
     svg: string;
     url: string;
