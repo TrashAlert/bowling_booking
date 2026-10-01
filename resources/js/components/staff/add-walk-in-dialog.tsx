@@ -88,12 +88,14 @@ export function AddWalkInDialog({ session }: { session: SessionRules }) {
                                         type="number"
                                         inputMode="numeric"
                                         min={1}
+                                        max={session.maxPlayersPerLane}
                                         defaultValue={2}
                                         required
                                     />
                                     <p className="text-xs text-muted-foreground">
-                                        Up to {session.maxPlayersPerLane} people
-                                        per lane
+                                        Up to {session.maxPlayersPerLane} per
+                                        lane. Add another walk-in for a bigger
+                                        group.
                                     </p>
                                     <InputError message={errors.party_size} />
                                 </div>

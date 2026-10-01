@@ -99,17 +99,48 @@ describe('adding a walk-in', function () {
         'longer than 4 hours' => [270, 'The minutes field must not be greater than 240.'],
     ]);
 
-    test('a party that needs more lanes than the venue has is turned away', function () {
+    test('a party that fills one lane exactly can be added', function () {
+        Lane::factory()->create();
+
+        $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.store'), [
+            'name' => 'Farah',
+            'party_size' => 6,
+            'minutes' => 60,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('waitlist_entries', ['party_size' => 6]);
+    });
+
+    test('a party bigger than one lane must be entered as another walk-in', function () {
         Lane::factory()->count(2)->create();
 
         $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.store'), [
             'name' => 'Office party',
-            'party_size' => 13,
+            'party_size' => 7,
             'minutes' => 60,
         ]);
 
-        $response->assertSessionHasErrors(['party_size' => 'A party this size needs 3 lanes, but there are only 2.']);
+        $response->assertSessionHasErrors([
+            'party_size' => 'A lane takes up to 6 people. Add another walk-in for the rest of the group.',
+        ]);
         $this->assertDatabaseCount('waitlist_entries', 0);
+        $this->assertDatabaseCount('customers', 0);
+    });
+
+    test('the party size limit follows the players-per-lane setting', function () {
+        config(['bowling.max_players_per_lane' => 4]);
+        Lane::factory()->create();
+
+        $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.store'), [
+            'name' => 'Farah',
+            'party_size' => 5,
+            'minutes' => 60,
+        ]);
+
+        $response->assertSessionHasErrors([
+            'party_size' => 'A lane takes up to 4 people. Add another walk-in for the rest of the group.',
+        ]);
     });
 });
 

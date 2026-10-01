@@ -6,7 +6,7 @@ return [
 
     // The version shown in the staff sidebar. Not read from .env: raise it
     // here with each change that should be tracked.
-    'version' => '0.2.1',
+    'version' => '0.2.2',
 
     // Sessions are booked in steps of this many minutes. One step is also the
     // shortest session.
@@ -15,7 +15,8 @@ return [
     // The longest session that can be booked.
     'max_session_minutes' => (int) env('BOWLING_MAX_SESSION_MINUTES', 240),
 
-    // How many people share one lane. A bigger party gets more lanes.
+    // How many people share one lane. It is also the most that one walk-in
+    // entry can hold: a bigger group is entered once per lane.
     'max_players_per_lane' => (int) env('BOWLING_MAX_PLAYERS_PER_LANE', 6),
 
     // How long an unpaid online booking keeps its lanes reserved.

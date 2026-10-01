@@ -24,4 +24,20 @@ trait SessionValidationRules
             "multiple_of:{$step}",
         ];
     }
+
+    /**
+     * Get the validation rules used to validate how many people are in a
+     * party. One entry is one lane, so a bigger group is entered once per lane.
+     *
+     * @return array<int, ValidationRule|array<mixed>|string>
+     */
+    protected function partySizeRules(): array
+    {
+        return [
+            'required',
+            'integer',
+            'min:1',
+            'max:'.config('bowling.max_players_per_lane'),
+        ];
+    }
 }
