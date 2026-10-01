@@ -130,6 +130,7 @@ test('the next allocation is shown alongside the current one', function () {
             'customerName' => 'Next Party',
             'note' => null,
             'isClosure' => false,
+            'closureReason' => null,
         ]);
 });
 
@@ -141,7 +142,7 @@ test('a session in play can be extended as far as nothing else is booked', funct
 
     $current = app(LaneBoard::class)->lanes()[0]['current'];
 
-    expect($current['canExtend'])->toBeTrue()
+    expect($current['isRunning'])->toBeTrue()
         ->and($current['extendableMinutes'])->toBeNull();
 });
 
@@ -157,8 +158,8 @@ test('a party on several lanes can only be extended until the first of them is b
 
     $cards = app(LaneBoard::class)->lanes();
 
-    expect($cards[0]['current'])->toMatchArray(['canExtend' => true, 'extendableMinutes' => 30])
-        ->and($cards[1]['current'])->toMatchArray(['canExtend' => true, 'extendableMinutes' => 30]);
+    expect($cards[0]['current'])->toMatchArray(['isRunning' => true, 'extendableMinutes' => 30, 'partyLaneNumbers' => [1, 2]])
+        ->and($cards[1]['current'])->toMatchArray(['isRunning' => true, 'extendableMinutes' => 30, 'partyLaneNumbers' => [1, 2]]);
 });
 
 test('a lane that is held, reserved or closed offers no extension', function () {
@@ -173,7 +174,7 @@ test('a lane that is held, reserved or closed offers no extension', function () 
     $cards = app(LaneBoard::class)->lanes();
 
     expect(array_column($cards, 'state'))->toBe(['held', 'reserved', 'closed_for_reservation'])
-        ->and(array_map(fn (array $card) => $card['current']['canExtend'], $cards))->toBe([false, false, false])
+        ->and(array_map(fn (array $card) => $card['current']['isRunning'], $cards))->toBe([false, false, false])
         ->and($held->refresh()->isOpen())->toBeTrue();
 });
 
@@ -195,6 +196,7 @@ test('a lane is closed in the hour before a reservation and shows who it is for'
             'customerName' => 'Farah',
             'note' => null,
             'isClosure' => false,
+            'closureReason' => null,
         ])
         ->and($booking->allocations)->toHaveCount(1);
 });
@@ -211,6 +213,7 @@ test('a free lane shows when it will close for a reservation', function () {
             'customerName' => 'Farah',
             'note' => null,
             'isClosure' => true,
+            'closureReason' => null,
         ]);
 });
 

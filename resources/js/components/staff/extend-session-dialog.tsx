@@ -11,23 +11,24 @@ import {
     DialogDescription,
     DialogFooter,
     DialogTitle,
-    DialogTrigger,
 } from '@/components/ui/dialog';
 import { formatSessionLength, formatTime } from '@/lib/format';
 import type { LaneCard, SessionRules } from '@/types';
 
 /**
- * Gives the party playing on a lane more time. The lane card only shows this
- * while the session is still running, so it closes itself when time runs out.
+ * Gives the party playing on a lane more time. The lane card only renders
+ * this while the session is still running, so it closes itself when time
+ * runs out.
  */
 export function ExtendSessionDialog({
     lane,
     session,
+    onClose,
 }: {
     lane: LaneCard;
     session: SessionRules;
+    onClose: () => void;
 }) {
-    const [open, setOpen] = useState(false);
     const [minutes, setMinutes] = useState(session.stepMinutes);
 
     const current = lane.current;
@@ -43,16 +44,7 @@ export function ExtendSessionDialog({
     ).toISOString();
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 shrink-0 px-2 text-xs"
-                >
-                    Extend
-                </Button>
-            </DialogTrigger>
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
             <DialogContent>
                 <DialogTitle>
                     Extend {current.customerName ?? `lane ${lane.number}`}'s
@@ -72,7 +64,7 @@ export function ExtendSessionDialog({
                         current.bookingId,
                     )}
                     options={{ preserveScroll: true }}
-                    onSuccess={() => setOpen(false)}
+                    onSuccess={onClose}
                     className="space-y-5"
                 >
                     {({ processing, errors }) => (

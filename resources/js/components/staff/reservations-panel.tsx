@@ -1,12 +1,24 @@
 import { Form, Link } from '@inertiajs/react';
+import { useState } from 'react';
 import BookingCheckInController from '@/actions/App/Http/Controllers/Staff/BookingCheckInController';
+import { MoveLanesDialog } from '@/components/staff/move-lanes-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatLanes, formatSessionLength, formatTime } from '@/lib/format';
 import { reservationsPage } from '@/lib/reservations';
-import type { ReservationRow } from '@/types';
+import { board } from '@/routes/staff';
+import type { LaneOption, ReservationRow } from '@/types';
 
-function Reservation({ row }: { row: ReservationRow }) {
+function Reservation({
+    row,
+    onMove,
+}: {
+    row: ReservationRow;
+    onMove: () => void;
+}) {
+    // A group can't check in while one of its lanes is closed.
+    const needsMoving = row.closedLaneNumbers.length > 0;
+
     return (
         <li className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
             <div className="min-w-0 flex-1">
@@ -26,9 +38,19 @@ function Reservation({ row }: { row: ReservationRow }) {
                         {row.phone}
                     </p>
                 )}
+                {needsMoving && (
+                    <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                        {formatLanes(row.closedLaneNumbers)} closed, needs
+                        moving
+                    </p>
+                )}
             </div>
 
-            {row.status === 'confirmed' ? (
+            {needsMoving ? (
+                <Button size="sm" onClick={onMove}>
+                    Move lanes
+                </Button>
+            ) : row.status === 'confirmed' ? (
                 <Form
                     {...BookingCheckInController.store.form(row.id)}
                     options={{ preserveScroll: true }}
@@ -48,9 +70,17 @@ function Reservation({ row }: { row: ReservationRow }) {
 
 export function ReservationsPanel({
     reservations,
+    laneOptions,
 }: {
     reservations: ReservationRow[];
+    laneOptions: LaneOption[] | undefined;
 }) {
+    const [movingId, setMovingId] = useState<number | null>(null);
+
+    // Looked up afresh each time, so the dialog closes by itself if the
+    // reservation drops off the board while it is open.
+    const moving = reservations.find((row) => row.id === movingId);
+
     return (
         <section className="rounded-xl border bg-card p-4 text-card-foreground shadow-sm">
             <h2 className="mb-3 flex items-baseline justify-between font-semibold">
@@ -73,9 +103,22 @@ export function ReservationsPanel({
             ) : (
                 <ul className="divide-y">
                     {reservations.map((row) => (
-                        <Reservation key={row.id} row={row} />
+                        <Reservation
+                            key={row.id}
+                            row={row}
+                            onMove={() => setMovingId(row.id)}
+                        />
                     ))}
                 </ul>
+            )}
+
+            {moving && (
+                <MoveLanesDialog
+                    reservation={moving}
+                    laneOptions={laneOptions}
+                    lookup={(query) => board({ query })}
+                    onClose={() => setMovingId(null)}
+                />
             )}
         </section>
     );

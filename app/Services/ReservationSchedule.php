@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\BookingSource;
+use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\LaneAllocation;
 use Carbon\CarbonInterface;
@@ -30,6 +31,7 @@ class ReservationSchedule
      *     endsAt: string,
      *     lanes: list<array{id: int, number: int}>,
      *     notes: string|null,
+     *     closedLaneNumbers: list<int>,
      * }>
      */
     public function between(CarbonInterface $from, CarbonInterface $to): array
@@ -67,6 +69,15 @@ class ReservationSchedule
                     ->values()
                     ->all(),
                 'notes' => $booking->notes,
+                // Lanes marked out of order under a reservation still to check in.
+                'closedLaneNumbers' => $booking->status === BookingStatus::Confirmed
+                    ? $booking->allocations
+                        ->filter(fn (LaneAllocation $allocation) => $allocation->lane->needsMovingAt($allocation->starts_at))
+                        ->pluck('lane.number')
+                        ->sort()
+                        ->values()
+                        ->all()
+                    : [],
             ])
             ->all();
     }

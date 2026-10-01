@@ -32,8 +32,10 @@ class LaneBoard
      *     hasBumpers: bool,
      *     isOpen: bool,
      *     state: string,
-     *     current: array{bookingId: int|null, customerName: string|null, partySize: int|null, startsAt: string, endsAt: string, heldUntil: string|null, note: string|null, canExtend: bool, extendableMinutes: int|null}|null,
-     *     next: array{startsAt: string, customerName: string|null, note: string|null, isClosure: bool}|null,
+     *     closure: array{reason: string|null, until: string|null}|null,
+     *     reservationsAhead: int,
+     *     current: array{bookingId: int|null, customerName: string|null, partySize: int|null, startsAt: string, endsAt: string, heldUntil: string|null, note: string|null, isRunning: bool, extendableMinutes: int|null, partyLaneNumbers: list<int>, closureReason: string|null}|null,
+     *     next: array{startsAt: string, customerName: string|null, note: string|null, isClosure: bool, closureReason: string|null}|null,
      * }>
      */
     public function lanes(): array
@@ -52,13 +54,20 @@ class LaneBoard
         $currentOn = fn (Lane $lane) => $lane->allocations->first(fn (LaneAllocation $allocation) => $allocation->starts_at <= $now);
         $nextOn = fn (Lane $lane) => $lane->allocations->first(fn (LaneAllocation $allocation) => $allocation->starts_at > $now);
 
+        $reservationsAhead = $this->reservationsAhead($now);
+
         // A party on several lanes can only be extended as far as the lane
         // that is booked again soonest, so find that moment per booking.
         $bookedAgainAt = [];
+        $laneNumbers = [];
 
         foreach ($lanes as $lane) {
             $bookingId = $currentOn($lane)?->booking_id;
             $following = $nextOn($lane)?->starts_at->getTimestamp();
+
+            if ($bookingId !== null) {
+                $laneNumbers[$bookingId][] = $lane->number;
+            }
 
             if ($bookingId !== null && $following !== null) {
                 $bookedAgainAt[$bookingId] = min($bookedAgainAt[$bookingId] ?? $following, $following);
@@ -66,7 +75,7 @@ class LaneBoard
         }
 
         return $lanes
-            ->map(function (Lane $lane) use ($currentOn, $nextOn, $bookedAgainAt) {
+            ->map(function (Lane $lane) use ($currentOn, $nextOn, $bookedAgainAt, $laneNumbers, $reservationsAhead) {
                 $current = $currentOn($lane);
                 $next = $nextOn($lane);
 
@@ -76,6 +85,12 @@ class LaneBoard
                     'hasBumpers' => $lane->has_bumpers,
                     'isOpen' => $lane->isOpen(),
                     'state' => $this->state($lane, $current)->value,
+                    // Why and until when an out-of-order lane is closed.
+                    'closure' => $lane->isOpen() ? null : [
+                        'reason' => $lane->closed_reason?->value,
+                        'until' => $lane->closed_until?->toIso8601String(),
+                    ],
+                    'reservationsAhead' => $reservationsAhead[$lane->id] ?? 0,
                     'current' => $current ? [
                         'bookingId' => $current->booking_id,
                         'customerName' => $this->party($current)?->customer->name,
@@ -84,16 +99,19 @@ class LaneBoard
                         'endsAt' => $current->ends_at->toIso8601String(),
                         'heldUntil' => $current->held_until?->toIso8601String(),
                         'note' => $current->note,
-                        'canExtend' => $this->isRunningSession($current),
+                        'isRunning' => $this->isRunningSession($current),
                         'extendableMinutes' => $this->isRunningSession($current)
                             ? $this->roomToExtend($current, $bookedAgainAt[$current->booking_id] ?? null)
                             : null,
+                        'partyLaneNumbers' => $laneNumbers[$current->booking_id] ?? [],
+                        'closureReason' => $current->closure_reason?->value,
                     ] : null,
                     'next' => $next ? [
                         'startsAt' => $next->starts_at->toIso8601String(),
                         'customerName' => $this->party($next)?->customer->name,
                         'note' => $next->note,
                         'isClosure' => $next->closed_for_booking_id !== null,
+                        'closureReason' => $next->closure_reason?->value,
                     ] : null,
                 ];
             })
@@ -157,6 +175,8 @@ class LaneBoard
      *     startsAt: string,
      *     endsAt: string,
      *     laneNumbers: list<int>,
+     *     lanes: list<array{id: int, number: int}>,
+     *     closedLaneNumbers: list<int>,
      * }>
      */
     public function reservations(): array
@@ -184,6 +204,12 @@ class LaneBoard
                 'startsAt' => $booking->allocations->min('starts_at')->toIso8601String(),
                 'endsAt' => $booking->allocations->max('ends_at')->toIso8601String(),
                 'laneNumbers' => $booking->allocations->pluck('lane.number')->sort()->values()->all(),
+                'lanes' => $booking->allocations
+                    ->sortBy('lane.number')
+                    ->map(fn (LaneAllocation $allocation) => ['id' => $allocation->lane_id, 'number' => $allocation->lane->number])
+                    ->values()
+                    ->all(),
+                'closedLaneNumbers' => $this->closedLaneNumbers($booking),
             ])
             ->all();
     }
@@ -209,13 +235,55 @@ class LaneBoard
             $current === null => LaneCardState::Free,
             $current->status === AllocationStatus::Held => LaneCardState::Held,
             $current->closed_for_booking_id !== null => LaneCardState::ClosedForReservation,
+            $current->closure_reason !== null => LaneCardState::Maintenance,
             $current->booking === null => LaneCardState::Blocked,
             $current->booking->status === BookingStatus::Confirmed => LaneCardState::Reserved,
             default => LaneCardState::InPlay,
         };
     }
 
-    // A party that has checked in and is playing: the only kind of session that can be extended.
+    /**
+     * The lanes of a reservation still waiting to check in that have been
+     * marked out of order: the group must be moved off them first.
+     *
+     * @return list<int>
+     */
+    private function closedLaneNumbers(Booking $booking): array
+    {
+        if ($booking->status !== BookingStatus::Confirmed) {
+            return [];
+        }
+
+        return $booking->allocations
+            ->filter(fn (LaneAllocation $allocation) => $allocation->lane->needsMovingAt($allocation->starts_at))
+            ->pluck('lane.number')
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * How many reservations still waiting to check in each lane has coming
+     * up, keyed by lane id. Shown when staff are about to close the lane.
+     *
+     * @return array<int, int>
+     */
+    private function reservationsAhead(CarbonInterface $now): array
+    {
+        return LaneAllocation::query()
+            ->occupying()
+            ->where('ends_at', '>', $now)
+            ->whereHas('booking', function (Builder $query) {
+                $query->where('status', BookingStatus::Confirmed->value)
+                    ->where('source', '!=', BookingSource::WalkIn->value);
+            })
+            ->get(['lane_id', 'booking_id'])
+            ->groupBy('lane_id')
+            ->map(fn ($allocations) => $allocations->unique('booking_id')->count())
+            ->all();
+    }
+
+    // A party that has checked in and is playing: the only kind of session that can be extended or ended early.
     private function isRunningSession(LaneAllocation $allocation): bool
     {
         return $allocation->status === AllocationStatus::Active

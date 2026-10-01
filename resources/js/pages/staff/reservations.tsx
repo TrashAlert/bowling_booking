@@ -3,11 +3,12 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import BookingCheckInController from '@/actions/App/Http/Controllers/Staff/BookingCheckInController';
 import { CancelReservationDialog } from '@/components/staff/cancel-reservation-dialog';
+import { MoveLanesDialog } from '@/components/staff/move-lanes-dialog';
 import { ReservationFormDialog } from '@/components/staff/reservation-form-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { addDays } from '@/lib/dates';
+import { addDays, browserTimeZone } from '@/lib/dates';
 import {
     formatDate,
     formatLanes,
@@ -73,17 +74,23 @@ type Filter = keyof typeof filters;
 type OpenDialog =
     | { kind: 'create' }
     | { kind: 'change'; reservation: ReservationDetail }
-    | { kind: 'cancel'; reservation: ReservationDetail };
+    | { kind: 'cancel'; reservation: ReservationDetail }
+    | { kind: 'move'; reservation: ReservationDetail };
 
 function ReservationRow({
     row,
     onChange,
     onCancel,
+    onMove,
 }: {
     row: ReservationDetail;
     onChange: () => void;
     onCancel: () => void;
+    onMove: () => void;
 }) {
+    // A group can't check in while one of its lanes is closed.
+    const needsMoving = row.closedLaneNumbers.length > 0;
+
     return (
         <li className="flex flex-wrap items-center gap-x-4 gap-y-2 p-4">
             <p className="w-36 shrink-0 font-medium tabular-nums">
@@ -115,6 +122,12 @@ function ReservationRow({
                         {row.notes}
                     </p>
                 )}
+                {needsMoving && (
+                    <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                        {formatLanes(row.closedLaneNumbers)} closed, needs
+                        moving
+                    </p>
+                )}
             </div>
 
             {row.status === 'confirmed' && (
@@ -125,16 +138,22 @@ function ReservationRow({
                     <Button variant="outline" size="sm" onClick={onChange}>
                         Change
                     </Button>
-                    <Form
-                        {...BookingCheckInController.store.form(row.id)}
-                        options={{ preserveScroll: true }}
-                    >
-                        {({ processing }) => (
-                            <Button size="sm" disabled={processing}>
-                                Check in
-                            </Button>
-                        )}
-                    </Form>
+                    {needsMoving ? (
+                        <Button size="sm" onClick={onMove}>
+                            Move lanes
+                        </Button>
+                    ) : (
+                        <Form
+                            {...BookingCheckInController.store.form(row.id)}
+                            options={{ preserveScroll: true }}
+                        >
+                            {({ processing }) => (
+                                <Button size="sm" disabled={processing}>
+                                    Check in
+                                </Button>
+                            )}
+                        </Form>
+                    )}
                 </div>
             )}
         </li>
@@ -258,6 +277,12 @@ export default function Reservations({
                                         reservation: row,
                                     })
                                 }
+                                onMove={() =>
+                                    setDialog({
+                                        kind: 'move',
+                                        reservation: row,
+                                    })
+                                }
                             />
                         ))}
                     </ul>
@@ -267,6 +292,18 @@ export default function Reservations({
             {dialog?.kind === 'cancel' && (
                 <CancelReservationDialog
                     reservation={dialog.reservation}
+                    onClose={() => setDialog(null)}
+                />
+            )}
+            {dialog?.kind === 'move' && (
+                <MoveLanesDialog
+                    reservation={dialog.reservation}
+                    laneOptions={laneOptions}
+                    lookup={(query) =>
+                        index({
+                            query: { date, tz: browserTimeZone(), ...query },
+                        })
+                    }
                     onClose={() => setDialog(null)}
                 />
             )}

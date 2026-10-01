@@ -6,7 +6,7 @@ return [
 
     // The version shown in the staff sidebar. Not read from .env: raise it
     // here with each change that should be tracked.
-    'version' => '0.4.1',
+    'version' => '0.4.2',
 
     // Sessions are booked in steps of this many minutes. One step is also the
     // shortest session.
@@ -25,6 +25,14 @@ return [
 
     // How far ahead a reservation can be made.
     'reservation_max_days_ahead' => (int) env('BOWLING_RESERVATION_MAX_DAYS_AHEAD', 90),
+
+    // The lengths staff can pick when closing a lane for a short job such as
+    // re-oiling. The lane reopens by itself afterwards.
+    'closure_minutes' => [15, 30, 45, 60],
+
+    // The estimates staff can give for a repair, in days. Only a guide: a
+    // lane under repair stays closed until staff reopen it.
+    'repair_days' => [1, 2, 3],
 
     // How long an unpaid online booking keeps its lanes reserved.
     'hold_minutes' => (int) env('BOWLING_HOLD_MINUTES', 10),

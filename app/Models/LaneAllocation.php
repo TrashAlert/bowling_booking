@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AllocationStatus;
+use App\Enums\LaneClosureReason;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -19,6 +20,7 @@ class LaneAllocation extends Model
         'status',
         'held_until',
         'note',
+        'closure_reason',
     ];
 
     protected function casts(): array
@@ -28,6 +30,7 @@ class LaneAllocation extends Model
             'ends_at' => 'datetime',
             'held_until' => 'datetime',
             'status' => AllocationStatus::class,
+            'closure_reason' => LaneClosureReason::class,
         ];
     }
 

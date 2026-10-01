@@ -33,6 +33,7 @@ test('a day lists its reservations earliest first with their lanes', function ()
                 ['id' => $four->id, 'number' => 4],
             ],
             'notes' => null,
+            'closedLaneNumbers' => [],
         ]);
 });
 

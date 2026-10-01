@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Staff;
 
+use App\Concerns\ProvidesLaneOptions;
 use App\Enums\BookingSource;
 use App\Exceptions\InvalidStateException;
 use App\Exceptions\NoLaneAvailableException;
@@ -21,6 +22,8 @@ use Inertia\Response;
 
 class ReservationController extends Controller
 {
+    use ProvidesLaneOptions;
+
     /**
      * Show one day's reservations. The day is a calendar date in the time
      * zone of the device asking, since the venue has no time zone set yet.
@@ -33,9 +36,6 @@ class ReservationController extends Controller
         $query = $request->validate([
             'date' => ['nullable', 'date_format:Y-m-d'],
             'tz' => ['nullable', 'timezone'],
-            'starts_at' => ['nullable', 'date'],
-            'minutes' => ['nullable', 'integer', 'min:1'],
-            'booking' => ['nullable', 'integer'],
         ]);
 
         $timeZone = $query['tz'] ?? 'UTC';
@@ -52,25 +52,7 @@ class ReservationController extends Controller
                 'leadMinutes' => config('bowling.reservation_lead_minutes'),
                 'maxDaysAhead' => config('bowling.reservation_max_days_ahead'),
             ],
-            'laneOptions' => Inertia::optional(function () use ($query, $availability) {
-                if (! isset($query['starts_at'], $query['minutes'])) {
-                    return [];
-                }
-
-                return $availability
-                    ->lanesForReservation(
-                        CarbonImmutable::parse($query['starts_at'])->utc(),
-                        (int) $query['minutes'],
-                        isset($query['booking']) ? Booking::query()->whereKey((int) $query['booking'])->first() : null,
-                    )
-                    ->map(fn (array $option) => [
-                        'id' => $option['lane']->id,
-                        'number' => $option['lane']->number,
-                        'hasBumpers' => $option['lane']->has_bumpers,
-                        'available' => $option['available'],
-                    ])
-                    ->all();
-            }),
+            'laneOptions' => $this->laneOptions($request, $availability),
         ]);
     }
 

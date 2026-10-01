@@ -13,6 +13,7 @@ use App\Models\Lane;
 use App\Models\LaneAllocation;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -22,8 +23,10 @@ class BookingService
     // PostgreSQL's error code when our no-overlap rule blocks an insert.
     private const OVERLAP_ERROR = '23P01';
 
-    public function __construct(private LaneAvailability $availability)
-    {
+    public function __construct(
+        private LaneAvailability $availability,
+        private LaneClosures $closures,
+    ) {
     }
 
     // A party bigger than one lane's limit gets more lanes, e.g. 10 people at 6 per lane = 2.
@@ -118,7 +121,7 @@ class BookingService
                 'notes' => $notes,
             ]);
 
-            $this->occupy($booking, $lanes, $startsAt, $minutes);
+            $this->occupy($booking, $lanes, $startsAt, $startsAt->addMinutes($minutes));
 
             return $booking->load('allocations.lane');
         });
@@ -176,7 +179,7 @@ class BookingService
             $booking->customer->update(['name' => $name, 'phone' => $phone]);
             $booking->update(['minutes' => $minutes, 'party_size' => $partySize, 'notes' => $notes]);
 
-            $this->occupy($booking, $lanes, $startsAt, $minutes);
+            $this->occupy($booking, $lanes, $startsAt, $startsAt->addMinutes($minutes));
 
             return $booking->load('allocations.lane');
         });
@@ -253,10 +256,133 @@ class BookingService
     }
 
     /**
+     * The party on a lane is leaving before its time is up: free that lane
+     * now. A party on several lanes keeps the others, and its booking is
+     * completed once the last of them has ended.
+     *
+     * @throws InvalidStateException if nobody who has checked in is playing on the lane.
+     */
+    public function endSessionOnLane(Lane $lane): Booking
+    {
+        return DB::transaction(function () use ($lane) {
+            $allocation = $lane->allocations()
+                ->where('status', AllocationStatus::Active->value)
+                ->whereNotNull('booking_id')
+                ->where('starts_at', '<=', now())
+                ->where('ends_at', '>', now())
+                ->lockForUpdate()
+                ->first();
+
+            $booking = $allocation === null
+                ? null
+                : Booking::query()->lockForUpdate()->find($allocation->booking_id);
+
+            if ($allocation === null || $booking?->status !== BookingStatus::CheckedIn) {
+                throw new InvalidStateException('There is no running session on this lane to end.');
+            }
+
+            // Times are kept to the second. A session ended in the very second
+            // it began would have no length left, which the database refuses,
+            // so that one is released instead.
+            $endedAt = now()->startOfSecond();
+            $wasDueToEnd = $allocation->ends_at;
+
+            $allocation->update($endedAt > $allocation->starts_at
+                ? ['ends_at' => $endedAt]
+                : ['status' => AllocationStatus::Released]);
+
+            // A re-oil or the like that was waiting for this session starts now instead.
+            $this->closures->pullForward($lane, $wasDueToEnd);
+
+            $stillPlaying = $booking->allocations()
+                ->where('status', AllocationStatus::Active->value)
+                ->where('ends_at', '>', now())
+                ->exists();
+
+            if (! $stillPlaying) {
+                $booking->update(['status' => BookingStatus::Completed]);
+            }
+
+            return $booking;
+        });
+    }
+
+    /**
+     * The numbers of the lanes a booking is on that have been marked out of
+     * order, lowest first. A group can't check in until it has been moved
+     * off them.
+     *
+     * @return list<int>
+     */
+    public function closedLaneNumbers(Booking $booking): array
+    {
+        return $booking->allocations()
+            ->occupying()
+            ->with('lane')
+            ->get()
+            ->pluck('lane')
+            ->reject(fn (Lane $lane) => $lane->isOpen())
+            ->pluck('number')
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Put a confirmed reservation on a different set of lanes without
+     * changing its time: staff do this when one of its lanes has been closed.
+     *
+     * Lanes it keeps are left as they are and lanes it drops are freed. A lane
+     * it gains is booked from the reservation's start, or from now if that
+     * has passed, to its end, and must be free for that time (and, ahead of
+     * time, for the hour it is closed beforehand). If a new lane isn't free,
+     * nothing changes.
+     *
+     * @param  Collection<int, Lane>  $lanes
+     *
+     * @throws InvalidStateException if the reservation is no longer confirmed, or is already over.
+     * @throws NoLaneAvailableException naming the first lane that is closed or isn't free.
+     */
+    public function moveLanes(Booking $booking, Collection $lanes): Booking
+    {
+        if ($lanes->isEmpty()) {
+            throw new InvalidArgumentException('A reservation needs at least one lane.');
+        }
+
+        return DB::transaction(function () use ($booking, $lanes) {
+            $booking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+            $current = $booking->allocations()->occupying()->get();
+
+            if ($booking->status !== BookingStatus::Confirmed || $current->isEmpty() || $current->max('ends_at') <= now()) {
+                throw new InvalidStateException('Only a confirmed reservation that is still to come can be moved.');
+            }
+
+            foreach ($lanes as $lane) {
+                if (! $lane->isOpen()) {
+                    throw new NoLaneAvailableException($lanes->count(), 0, $lane->number);
+                }
+            }
+
+            $dropped = $current->pluck('lane_id')->diff($lanes->pluck('id'));
+
+            $booking->allocations()->whereIn('lane_id', $dropped)->delete();
+            $booking->closures()->whereIn('lane_id', $dropped)->delete();
+
+            $gained = $lanes->reject(fn (Lane $lane) => $current->contains('lane_id', $lane->id))->values();
+
+            if ($gained->isNotEmpty()) {
+                $this->occupy($booking, $gained, $current->min('starts_at')->max(now()->startOfSecond()), $current->max('ends_at'));
+            }
+
+            return $booking->load('allocations.lane');
+        });
+    }
+
+    /**
      * The party with a reservation has arrived: start their session, so the
      * booking is no longer treated as a no-show.
      *
-     * @throws InvalidStateException if the booking isn't a confirmed reservation.
+     * @throws InvalidStateException if the booking isn't a confirmed reservation, or one of its lanes is closed.
      */
     public function checkIn(Booking $booking): Booking
     {
@@ -267,6 +393,16 @@ class BookingService
                 throw new InvalidStateException('Only a confirmed reservation can be checked in.');
             }
 
+            $closed = $this->closedLaneNumbers($booking);
+
+            if ($closed !== []) {
+                throw new InvalidStateException(trans_choice(
+                    'Lane :lanes is closed. Move the group to another lane before checking in.|Lanes :lanes are closed. Move the group to other lanes before checking in.',
+                    count($closed),
+                    ['lanes' => Arr::join($closed, ', ', ' and ')],
+                ));
+            }
+
             $booking->update(['status' => BookingStatus::CheckedIn]);
 
             return $booking;
@@ -274,14 +410,14 @@ class BookingService
     }
 
     /**
-     * Put a reservation on each of the chosen lanes: a row that closes the
-     * lane beforehand, then the session itself.
+     * Put a reservation on each of the chosen lanes from $startsAt to
+     * $endsAt: a row that closes the lane beforehand, then the session itself.
      *
      * @param  Collection<int, Lane>  $lanes
      *
      * @throws NoLaneAvailableException naming the first lane that isn't free.
      */
-    private function occupy(Booking $booking, Collection $lanes, CarbonImmutable $startsAt, int $minutes): void
+    private function occupy(Booking $booking, Collection $lanes, CarbonImmutable $startsAt, CarbonImmutable $endsAt): void
     {
         if ($lanes->isEmpty()) {
             throw new InvalidArgumentException('A reservation needs at least one lane.');
@@ -289,7 +425,7 @@ class BookingService
 
         // Times are saved as their own clock time, so make sure that clock is UTC.
         $startsAt = $startsAt->utc();
-        $endsAt = $startsAt->addMinutes($minutes);
+        $endsAt = $endsAt->utc();
         $closesAt = $this->availability->closesAt($startsAt);
         $reserved = 0;
 

@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { useServerClock } from '@/hooks/use-server-clock';
 import { board } from '@/routes/staff';
 import type {
+    ClosureOptions,
     LaneCard as LaneCardData,
+    LaneOption,
     ReservationRow,
     SessionRules,
     WaitlistRow,
@@ -19,6 +21,8 @@ type Props = {
     waitlist: WaitlistRow[];
     reservations: ReservationRow[];
     session: SessionRules;
+    closureOptions: ClosureOptions;
+    laneOptions?: LaneOption[];
     serverNow: string;
 };
 
@@ -30,6 +34,8 @@ export default function Board({
     waitlist,
     reservations,
     session,
+    closureOptions,
+    laneOptions,
     serverNow,
 }: Props) {
     usePoll(POLL_INTERVAL_MS, {
@@ -79,6 +85,7 @@ export default function Board({
                                     lane={lane}
                                     now={now}
                                     session={session}
+                                    closureOptions={closureOptions}
                                 />
                             ))}
                         </div>
@@ -86,7 +93,10 @@ export default function Board({
 
                     <div className="flex flex-col gap-4">
                         <WaitlistPanel waitlist={waitlist} now={now} />
-                        <ReservationsPanel reservations={reservations} />
+                        <ReservationsPanel
+                            reservations={reservations}
+                            laneOptions={laneOptions}
+                        />
                     </div>
                 </div>
             </div>

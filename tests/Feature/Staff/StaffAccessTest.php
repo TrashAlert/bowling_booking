@@ -32,10 +32,14 @@ test('users without a role are forbidden from every staff endpoint', function (s
 
         return route('staff.bookings.extend', bookReservation(now()));
     }],
-    'toggle lane' => ['patch', fn () => route('staff.lanes.update', Lane::factory()->create())],
+    'end a session' => ['delete', fn () => route('staff.lanes.session.end', Lane::factory()->create())],
+    'close a lane' => ['post', fn () => route('staff.lanes.closure.store', Lane::factory()->create())],
+    'add time to a closure' => ['patch', fn () => route('staff.lanes.closure.update', Lane::factory()->create())],
+    'reopen a lane' => ['delete', fn () => route('staff.lanes.closure.destroy', Lane::factory()->create())],
     'list reservations' => ['get', fn () => route('staff.reservations.index')],
     'make a reservation' => ['post', fn () => route('staff.reservations.store')],
     'change a reservation' => ['patch', fn () => route('staff.reservations.update', reserveLanes(Lane::factory()->create(), now()->addHours(2)))],
+    'move a reservation to other lanes' => ['patch', fn () => route('staff.reservations.lanes.update', reserveLanes(Lane::factory()->create(), now()->addHours(2)))],
     'cancel a reservation' => ['delete', fn () => route('staff.reservations.destroy', reserveLanes(Lane::factory()->create(), now()->addHours(2)))],
 ]);
 

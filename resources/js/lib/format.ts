@@ -16,6 +16,16 @@ export function formatDate(date: string): string {
     return dateFormat.format(new Date(`${date}T12:00`));
 }
 
+const dayFormat = new Intl.DateTimeFormat(undefined, { weekday: 'long' });
+
+/**
+ * Show the day of the week a UTC timestamp falls on for the viewer, e.g.
+ * "Saturday". Meant for dates a few days away.
+ */
+export function formatDay(iso: string): string {
+    return dayFormat.format(new Date(iso));
+}
+
 /**
  * Show a time of day ("19:30") the way the viewer's device writes times.
  */
