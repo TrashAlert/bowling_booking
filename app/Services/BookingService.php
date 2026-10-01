@@ -10,7 +10,6 @@ use App\Exceptions\NoLaneAvailableException;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Lane;
-use App\Models\Package;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -25,13 +24,13 @@ class BookingService
     }
 
     // A party bigger than one lane's limit gets more lanes, e.g. 10 people at 6 per lane = 2.
-    public function lanesNeeded(Package $package, int $partySize): int
+    public function lanesNeeded(int $partySize): int
     {
-        return (int) ceil($partySize / $package->max_players);
+        return (int) ceil($partySize / config('bowling.max_players_per_lane'));
     }
 
     /**
-     * Book enough lanes for the party, starting at $startsAt.
+     * Book enough lanes for the party for $minutes, starting at $startsAt.
      *
      * $hold = true reserves the lanes only for a few minutes and leaves the
      * booking pending: for online bookings awaiting payment, and for walk-ins
@@ -42,26 +41,26 @@ class BookingService
      */
     public function book(
         Customer $customer,
-        Package $package,
+        int $minutes,
         int $partySize,
         CarbonImmutable $startsAt,
         BookingSource $source,
         bool $hold = false,
         ?int $holdMinutes = null,
     ): Booking {
-        $endsAt = $startsAt->addMinutes($package->minutes);
-        $needed = $this->lanesNeeded($package, $partySize);
+        $endsAt = $startsAt->addMinutes($minutes);
+        $needed = $this->lanesNeeded($partySize);
         $heldUntil = $hold ? now()->addMinutes($holdMinutes ?? config('bowling.hold_minutes')) : null;
 
-        return DB::transaction(function () use ($customer, $package, $partySize, $startsAt, $endsAt, $source, $hold, $heldUntil, $needed) {
+        return DB::transaction(function () use ($customer, $minutes, $partySize, $startsAt, $endsAt, $source, $hold, $heldUntil, $needed) {
             $booking = Booking::create([
                 'customer_id' => $customer->id,
-                'package_id' => $package->id,
+                'minutes' => $minutes,
                 'party_size' => $partySize,
                 'source' => $source,
                 'status' => $hold ? BookingStatus::Pending : BookingStatus::Confirmed,
-                // The package price is per lane.
-                'total_cents' => $package->price_cents * $needed,
+                // Sessions aren't priced yet.
+                'total_cents' => 0,
             ]);
 
             $taken = 0;

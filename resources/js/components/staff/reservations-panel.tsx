@@ -2,7 +2,7 @@ import { Form } from '@inertiajs/react';
 import BookingCheckInController from '@/actions/App/Http/Controllers/Staff/BookingCheckInController';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatLanes, formatTime } from '@/lib/format';
+import { formatLanes, formatSessionLength, formatTime } from '@/lib/format';
 import type { ReservationRow } from '@/types';
 
 function Reservation({ row }: { row: ReservationRow }) {
@@ -17,7 +17,8 @@ function Reservation({ row }: { row: ReservationRow }) {
                 </p>
                 <p className="truncate text-sm text-muted-foreground">
                     {row.partySize} {row.partySize === 1 ? 'person' : 'people'}{' '}
-                    · {row.packageName} · {formatLanes(row.laneNumbers)}
+                    · {formatSessionLength(row.minutes)} ·{' '}
+                    {formatLanes(row.laneNumbers)}
                 </p>
                 {row.phone && (
                     <p className="text-sm text-muted-foreground tabular-nums">

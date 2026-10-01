@@ -9,8 +9,8 @@ import { useServerClock } from '@/hooks/use-server-clock';
 import { board } from '@/routes/staff';
 import type {
     LaneCard as LaneCardData,
-    PackageOption,
     ReservationRow,
+    SessionRules,
     WaitlistRow,
 } from '@/types';
 
@@ -18,7 +18,7 @@ type Props = {
     lanes: LaneCardData[];
     waitlist: WaitlistRow[];
     reservations: ReservationRow[];
-    packages: PackageOption[];
+    session: SessionRules;
     serverNow: string;
 };
 
@@ -29,7 +29,7 @@ export default function Board({
     lanes,
     waitlist,
     reservations,
-    packages,
+    session,
     serverNow,
 }: Props) {
     usePoll(POLL_INTERVAL_MS, {
@@ -66,7 +66,7 @@ export default function Board({
                                 </Button>
                             )}
                         </Form>
-                        <AddWalkInDialog packages={packages} />
+                        <AddWalkInDialog session={session} />
                     </div>
                 </div>
 

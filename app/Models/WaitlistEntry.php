@@ -12,7 +12,7 @@ class WaitlistEntry extends Model
 {
     protected $fillable = [
         'customer_id',
-        'package_id',
+        'minutes',
         'booking_id',
         'party_size',
         'status',
@@ -26,6 +26,7 @@ class WaitlistEntry extends Model
     protected function casts(): array
     {
         return [
+            'minutes' => 'integer',
             'party_size' => 'integer',
             'status' => WaitlistStatus::class,
             'called_at' => 'datetime',
@@ -44,11 +45,6 @@ class WaitlistEntry extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
-    }
-
-    public function package(): BelongsTo
-    {
-        return $this->belongsTo(Package::class);
     }
 
     public function booking(): BelongsTo

@@ -2,7 +2,12 @@ import { Form } from '@inertiajs/react';
 import WaitlistController from '@/actions/App/Http/Controllers/Staff/WaitlistController';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatCountdown, formatLanes, formatMinutes } from '@/lib/format';
+import {
+    formatCountdown,
+    formatLanes,
+    formatMinutes,
+    formatSessionLength,
+} from '@/lib/format';
 import type { WaitlistRow } from '@/types';
 
 function WaitlistEntry({ row, now }: { row: WaitlistRow; now: number }) {
@@ -21,7 +26,7 @@ function WaitlistEntry({ row, now }: { row: WaitlistRow; now: number }) {
                     <p className="text-sm text-muted-foreground">
                         {row.partySize}{' '}
                         {row.partySize === 1 ? 'person' : 'people'} ·{' '}
-                        {row.packageName}
+                        {formatSessionLength(row.minutes)}
                     </p>
                 </div>
 

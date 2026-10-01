@@ -3,7 +3,6 @@
 use App\Enums\BookingSource;
 use App\Models\Booking;
 use App\Models\Customer;
-use App\Models\Package;
 use App\Models\WaitlistEntry;
 use App\Services\BookingService;
 use App\Services\WaitlistService;
@@ -60,11 +59,11 @@ function something()
 /**
  * Book a confirmed phone reservation through the real booking service.
  */
-function bookReservation(Package $package, CarbonImmutable $startsAt, int $partySize = 4): Booking
+function bookReservation(CarbonImmutable $startsAt, int $minutes = 60, int $partySize = 4): Booking
 {
     return app(BookingService::class)->book(
         Customer::factory()->create(),
-        $package,
+        $minutes,
         $partySize,
         $startsAt,
         BookingSource::Phone,
@@ -74,7 +73,7 @@ function bookReservation(Package $package, CarbonImmutable $startsAt, int $party
 /**
  * Put a new walk-in party at the end of the waitlist.
  */
-function joinWaitlist(Package $package, int $partySize = 4, string $name = 'Walk-in party'): WaitlistEntry
+function joinWaitlist(int $minutes = 60, int $partySize = 4, string $name = 'Walk-in party'): WaitlistEntry
 {
-    return app(WaitlistService::class)->joinAsNewCustomer($name, null, $package, $partySize);
+    return app(WaitlistService::class)->joinAsNewCustomer($name, null, $minutes, $partySize);
 }

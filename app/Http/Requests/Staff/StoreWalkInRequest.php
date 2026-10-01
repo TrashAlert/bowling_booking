@@ -2,17 +2,18 @@
 
 namespace App\Http\Requests\Staff;
 
+use App\Concerns\SessionValidationRules;
 use App\Models\Lane;
-use App\Models\Package;
 use App\Services\BookingService;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class StoreWalkInRequest extends FormRequest
 {
+    use SessionValidationRules;
+
     /**
      * Get the validation rules that apply to the request.
      *
@@ -24,7 +25,7 @@ class StoreWalkInRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'party_size' => ['required', 'integer', 'min:1', 'max:255'],
-            'package_id' => ['required', 'integer', Rule::exists(Package::class, 'id')->where('is_active', true)],
+            'minutes' => $this->sessionMinutesRules(),
         ];
     }
 
@@ -38,14 +39,11 @@ class StoreWalkInRequest extends FormRequest
     {
         return [
             function (Validator $validator) use ($bookings) {
-                if ($validator->errors()->hasAny(['party_size', 'package_id'])) {
+                if ($validator->errors()->has('party_size')) {
                     return;
                 }
 
-                $needed = $bookings->lanesNeeded(
-                    Package::findOrFail($this->integer('package_id')),
-                    $this->integer('party_size'),
-                );
+                $needed = $bookings->lanesNeeded($this->integer('party_size'));
                 $lanes = Lane::query()->count();
 
                 if ($needed > $lanes) {

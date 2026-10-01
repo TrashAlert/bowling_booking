@@ -6,7 +6,6 @@ use App\Enums\WaitlistStatus;
 use App\Exceptions\InvalidStateException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Staff\StoreWalkInRequest;
-use App\Models\Package;
 use App\Models\WaitlistEntry;
 use App\Services\WaitlistService;
 use Illuminate\Http\RedirectResponse;
@@ -22,7 +21,7 @@ class WaitlistController extends Controller
         $entry = $waitlist->joinAsNewCustomer(
             $request->string('name')->toString(),
             $request->input('phone'),
-            Package::findOrFail($request->integer('package_id')),
+            $request->integer('minutes'),
             $request->integer('party_size'),
         );
 

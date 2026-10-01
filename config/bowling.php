@@ -5,8 +5,18 @@
 return [
 
     // The version shown in the staff sidebar. Not read from .env: raise it
-    // here whenever a milestone is finished (0.2.0 = milestones 1 and 2).
-    'version' => '0.2.0',
+    // here with each change that should be tracked.
+    'version' => '0.2.1',
+
+    // Sessions are booked in steps of this many minutes. One step is also the
+    // shortest session.
+    'session_step_minutes' => (int) env('BOWLING_SESSION_STEP_MINUTES', 30),
+
+    // The longest session that can be booked.
+    'max_session_minutes' => (int) env('BOWLING_MAX_SESSION_MINUTES', 240),
+
+    // How many people share one lane. A bigger party gets more lanes.
+    'max_players_per_lane' => (int) env('BOWLING_MAX_PLAYERS_PER_LANE', 6),
 
     // How long an unpaid online booking keeps its lanes reserved.
     'hold_minutes' => (int) env('BOWLING_HOLD_MINUTES', 10),

@@ -51,7 +51,7 @@ export type WaitlistRow = {
     position: number;
     customerName: string;
     partySize: number;
-    packageName: string;
+    minutes: number;
     status: Extract<WaitlistStatus, 'waiting' | 'called'>;
     joinedAt: string;
     calledAt: string | null;
@@ -64,17 +64,16 @@ export type ReservationRow = {
     customerName: string;
     phone: string | null;
     partySize: number;
-    packageName: string;
+    minutes: number;
     status: Extract<BookingStatus, 'confirmed' | 'checked_in'>;
     startsAt: string;
     endsAt: string;
     laneNumbers: number[];
 };
 
-export type PackageOption = {
-    id: number;
-    name: string;
-    minutes: number;
-    priceCents: number;
-    maxPlayers: number;
+// A session's length is chosen in steps of stepMinutes, up to maxMinutes.
+export type SessionRules = {
+    stepMinutes: number;
+    maxMinutes: number;
+    maxPlayersPerLane: number;
 };

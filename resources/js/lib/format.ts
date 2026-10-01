@@ -1,20 +1,7 @@
-const moneyFormat = new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-});
-
 const timeFormat = new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
     minute: '2-digit',
 });
-
-/**
- * Format an amount held in the smallest currency unit, e.g. 6000 -> "60.00".
- * There is no currency symbol until the venue's currency is decided.
- */
-export function formatMoney(cents: number): string {
-    return moneyFormat.format(cents / 100);
-}
 
 /**
  * Show a UTC timestamp as a clock time in the viewer's own time zone.
@@ -38,6 +25,13 @@ export function formatMinutes(milliseconds: number): string {
     return rest === 0
         ? `${Math.floor(minutes / 60)} h`
         : `${Math.floor(minutes / 60)} h ${rest} min`;
+}
+
+/**
+ * How long a session lasts, from its length in minutes, e.g. "1 h 30 min".
+ */
+export function formatSessionLength(minutes: number): string {
+    return formatMinutes(minutes * 60_000);
 }
 
 /**

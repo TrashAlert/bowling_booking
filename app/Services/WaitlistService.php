@@ -9,7 +9,6 @@ use App\Enums\WaitlistStatus;
 use App\Exceptions\InvalidStateException;
 use App\Exceptions\NoLaneAvailableException;
 use App\Models\Customer;
-use App\Models\Package;
 use App\Models\WaitlistEntry;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -22,24 +21,24 @@ class WaitlistService
     ) {
     }
 
-    // Add a walk-in party to the end of the line.
-    public function join(Customer $customer, Package $package, int $partySize): WaitlistEntry
+    // Add a walk-in party that wants to play for $minutes to the end of the line.
+    public function join(Customer $customer, int $minutes, int $partySize): WaitlistEntry
     {
         return WaitlistEntry::create([
             'customer_id' => $customer->id,
-            'package_id' => $package->id,
+            'minutes' => $minutes,
             'party_size' => $partySize,
             'status' => WaitlistStatus::Waiting,
         ]);
     }
 
     // Add a party we have no customer record for yet, e.g. a walk-in at the desk.
-    public function joinAsNewCustomer(string $name, ?string $phone, Package $package, int $partySize): WaitlistEntry
+    public function joinAsNewCustomer(string $name, ?string $phone, int $minutes, int $partySize): WaitlistEntry
     {
-        return DB::transaction(function () use ($name, $phone, $package, $partySize) {
+        return DB::transaction(function () use ($name, $phone, $minutes, $partySize) {
             $customer = Customer::create(['name' => $name, 'phone' => $phone]);
 
-            return $this->join($customer, $package, $partySize);
+            return $this->join($customer, $minutes, $partySize);
         });
     }
 
@@ -64,7 +63,6 @@ class WaitlistService
             ->where('status', WaitlistStatus::Waiting->value)
             ->orderBy('created_at')
             ->orderBy('id')
-            ->with('package')
             ->get();
 
         foreach ($waiting as $entry) {
@@ -75,8 +73,8 @@ class WaitlistService
                 break;
             }
 
-            $end = $start->addMinutes($entry->package->minutes);
-            $needed = $this->bookings->lanesNeeded($entry->package, $entry->party_size);
+            $end = $start->addMinutes($entry->minutes);
+            $needed = $this->bookings->lanesNeeded($entry->party_size);
 
             if ($this->availability->freeLaneCount($start, $end) < $needed) {
                 continue;
@@ -155,7 +153,7 @@ class WaitlistService
         try {
             return DB::transaction(function () use ($entry, $start) {
                 // Lock the entry so two processes can't call the same party at once.
-                $entry = WaitlistEntry::query()->with(['customer', 'package'])->lockForUpdate()->find($entry->id);
+                $entry = WaitlistEntry::query()->with('customer')->lockForUpdate()->find($entry->id);
 
                 if ($entry?->status !== WaitlistStatus::Waiting) {
                     return null;
@@ -163,7 +161,7 @@ class WaitlistService
 
                 $booking = $this->bookings->book(
                     $entry->customer,
-                    $entry->package,
+                    $entry->minutes,
                     $entry->party_size,
                     $start,
                     BookingSource::WalkIn,

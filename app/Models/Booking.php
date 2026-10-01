@@ -13,7 +13,7 @@ class Booking extends Model
 {
     protected $fillable = [
         'customer_id',
-        'package_id',
+        'minutes',
         'party_size',
         'source',
         'status',
@@ -24,6 +24,7 @@ class Booking extends Model
     protected function casts(): array
     {
         return [
+            'minutes' => 'integer',
             'party_size' => 'integer',
             'total_cents' => 'integer',
             'source' => BookingSource::class,
@@ -34,11 +35,6 @@ class Booking extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
-    }
-
-    public function package(): BelongsTo
-    {
-        return $this->belongsTo(Package::class);
     }
 
     // One booking can take several lanes, e.g. a party of 12 on two lanes.

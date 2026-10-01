@@ -18,7 +18,7 @@ class BoardController extends Controller
             'lanes' => $board->lanes(),
             'waitlist' => $board->waitlist(),
             'reservations' => $board->reservations(),
-            'packages' => $board->packages(),
+            'session' => $board->sessionRules(),
             'serverNow' => now()->toIso8601String(),
         ]);
     }

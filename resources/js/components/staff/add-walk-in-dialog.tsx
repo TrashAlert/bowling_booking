@@ -14,11 +14,22 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { formatMoney } from '@/lib/format';
-import type { PackageOption } from '@/types';
+import { formatSessionLength } from '@/lib/format';
+import type { SessionRules } from '@/types';
 
-export function AddWalkInDialog({ packages }: { packages: PackageOption[] }) {
+// The length that is ticked when the dialog opens, if the rules allow it.
+const DEFAULT_SESSION_MINUTES = 60;
+
+export function AddWalkInDialog({ session }: { session: SessionRules }) {
     const [open, setOpen] = useState(false);
+
+    const lengths = Array.from(
+        { length: Math.floor(session.maxMinutes / session.stepMinutes) },
+        (_, index) => (index + 1) * session.stepMinutes,
+    );
+    const defaultLength = lengths.includes(DEFAULT_SESSION_MINUTES)
+        ? DEFAULT_SESSION_MINUTES
+        : lengths[0];
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -80,40 +91,39 @@ export function AddWalkInDialog({ packages }: { packages: PackageOption[] }) {
                                         defaultValue={2}
                                         required
                                     />
+                                    <p className="text-xs text-muted-foreground">
+                                        Up to {session.maxPlayersPerLane} people
+                                        per lane
+                                    </p>
                                     <InputError message={errors.party_size} />
                                 </div>
                             </div>
 
                             <fieldset className="grid gap-2">
                                 <legend className="mb-2 text-sm leading-none font-medium">
-                                    Package
+                                    Session length
                                 </legend>
-                                <div className="grid gap-2 sm:grid-cols-2">
-                                    {packages.map((option, index) => (
+                                <div className="grid grid-cols-4 gap-2">
+                                    {lengths.map((minutes) => (
                                         <label
-                                            key={option.id}
-                                            className="flex cursor-pointer flex-col rounded-lg border p-3 has-checked:border-primary has-checked:bg-accent has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50"
+                                            key={minutes}
+                                            className="flex h-11 cursor-pointer items-center justify-center rounded-lg border text-sm font-medium tabular-nums has-checked:border-primary has-checked:bg-primary has-checked:text-primary-foreground has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50"
                                         >
                                             <input
                                                 type="radio"
-                                                name="package_id"
-                                                value={option.id}
-                                                defaultChecked={index === 0}
+                                                name="minutes"
+                                                value={minutes}
+                                                defaultChecked={
+                                                    minutes === defaultLength
+                                                }
                                                 required
                                                 className="sr-only"
                                             />
-                                            <span className="font-medium">
-                                                {option.name}
-                                            </span>
-                                            <span className="text-sm text-muted-foreground">
-                                                {formatMoney(option.priceCents)}{' '}
-                                                per lane · up to{' '}
-                                                {option.maxPlayers} per lane
-                                            </span>
+                                            {formatSessionLength(minutes)}
                                         </label>
                                     ))}
                                 </div>
-                                <InputError message={errors.package_id} />
+                                <InputError message={errors.minutes} />
                             </fieldset>
 
                             <DialogFooter className="gap-2">

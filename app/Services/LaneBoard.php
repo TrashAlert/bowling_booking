@@ -9,7 +9,6 @@ use App\Enums\LaneCardState;
 use App\Models\Booking;
 use App\Models\Lane;
 use App\Models\LaneAllocation;
-use App\Models\Package;
 use App\Models\WaitlistEntry;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -87,7 +86,7 @@ class LaneBoard
      *     position: int,
      *     customerName: string,
      *     partySize: int,
-     *     packageName: string,
+     *     minutes: int,
      *     status: string,
      *     joinedAt: string,
      *     calledAt: string|null,
@@ -99,7 +98,7 @@ class LaneBoard
     {
         return WaitlistEntry::query()
             ->inLine()
-            ->with(['customer', 'package', 'booking.allocations.lane'])
+            ->with(['customer', 'booking.allocations.lane'])
             ->get()
             ->values()
             ->map(function (WaitlistEntry $entry, int $index) {
@@ -110,7 +109,7 @@ class LaneBoard
                     'position' => $index + 1,
                     'customerName' => $entry->customer->name,
                     'partySize' => $entry->party_size,
-                    'packageName' => $entry->package->name,
+                    'minutes' => $entry->minutes,
                     'status' => $entry->status->value,
                     'joinedAt' => $entry->created_at->toIso8601String(),
                     'calledAt' => $entry->called_at?->toIso8601String(),
@@ -130,7 +129,7 @@ class LaneBoard
      *     customerName: string,
      *     phone: string|null,
      *     partySize: int,
-     *     packageName: string,
+     *     minutes: int,
      *     status: string,
      *     startsAt: string,
      *     endsAt: string,
@@ -145,7 +144,7 @@ class LaneBoard
             ->whereIn('source', [BookingSource::Online->value, BookingSource::Phone->value])
             ->whereIn('status', [BookingStatus::Confirmed->value, BookingStatus::CheckedIn->value])
             ->whereHas('allocations', fn (Builder $query) => $this->upcoming($query, $now))
-            ->with(['customer', 'package', 'allocations' => function (Relation $query) use ($now) {
+            ->with(['customer', 'allocations' => function (Relation $query) use ($now) {
                 $this->upcoming($query->getQuery(), $now)->with('lane');
             }])
             ->orderBy('id')
@@ -157,7 +156,7 @@ class LaneBoard
                 'customerName' => $booking->customer->name,
                 'phone' => $booking->customer->phone,
                 'partySize' => $booking->party_size,
-                'packageName' => $booking->package->name,
+                'minutes' => $booking->minutes,
                 'status' => $booking->status->value,
                 'startsAt' => $booking->allocations->min('starts_at')->toIso8601String(),
                 'endsAt' => $booking->allocations->max('ends_at')->toIso8601String(),
@@ -167,25 +166,17 @@ class LaneBoard
     }
 
     /**
-     * The packages a walk-in can choose from, shortest first.
+     * What a session can be: its length is chosen in steps, up to a limit.
      *
-     * @return list<array{id: int, name: string, minutes: int, priceCents: int, maxPlayers: int}>
+     * @return array{stepMinutes: int, maxMinutes: int, maxPlayersPerLane: int}
      */
-    public function packages(): array
+    public function sessionRules(): array
     {
-        return Package::query()
-            ->where('is_active', true)
-            ->orderBy('minutes')
-            ->orderBy('id')
-            ->get()
-            ->map(fn (Package $package) => [
-                'id' => $package->id,
-                'name' => $package->name,
-                'minutes' => $package->minutes,
-                'priceCents' => $package->price_cents,
-                'maxPlayers' => $package->max_players,
-            ])
-            ->all();
+        return [
+            'stepMinutes' => config('bowling.session_step_minutes'),
+            'maxMinutes' => config('bowling.max_session_minutes'),
+            'maxPlayersPerLane' => config('bowling.max_players_per_lane'),
+        ];
     }
 
     private function state(Lane $lane, ?LaneAllocation $current): LaneCardState
