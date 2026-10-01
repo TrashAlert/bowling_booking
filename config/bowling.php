@@ -4,6 +4,10 @@
 
 return [
 
+    // The version shown in the staff sidebar. Not read from .env: raise it
+    // here whenever a milestone is finished (0.2.0 = milestones 1 and 2).
+    'version' => '0.2.0',
+
     // How long an unpaid online booking keeps its lanes reserved.
     'hold_minutes' => (int) env('BOWLING_HOLD_MINUTES', 10),
 

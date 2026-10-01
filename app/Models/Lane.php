@@ -3,11 +3,16 @@
 namespace App\Models;
 
 use App\Enums\LaneStatus;
+use Database\Factories\LaneFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Lane extends Model
 {
+    /** @use HasFactory<LaneFactory> */
+    use HasFactory;
+
     protected $fillable = ['number', 'has_bumpers', 'status'];
 
     protected function casts(): array

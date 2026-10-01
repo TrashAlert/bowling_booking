@@ -97,6 +97,9 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Eloquent writes times without an offset. Pin the session to UTC
+            // so PostgreSQL reads them as UTC whatever the server's own zone is.
+            'timezone' => 'UTC',
         ],
 
         'sqlsrv' => [

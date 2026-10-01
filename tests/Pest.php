@@ -1,5 +1,13 @@
 <?php
 
+use App\Enums\BookingSource;
+use App\Models\Booking;
+use App\Models\Customer;
+use App\Models\Package;
+use App\Models\WaitlistEntry;
+use App\Services\BookingService;
+use App\Services\WaitlistService;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -47,4 +55,26 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * Book a confirmed phone reservation through the real booking service.
+ */
+function bookReservation(Package $package, CarbonImmutable $startsAt, int $partySize = 4): Booking
+{
+    return app(BookingService::class)->book(
+        Customer::factory()->create(),
+        $package,
+        $partySize,
+        $startsAt,
+        BookingSource::Phone,
+    );
+}
+
+/**
+ * Put a new walk-in party at the end of the waitlist.
+ */
+function joinWaitlist(Package $package, int $partySize = 4, string $name = 'Walk-in party'): WaitlistEntry
+{
+    return app(WaitlistService::class)->joinAsNewCustomer($name, null, $package, $partySize);
 }

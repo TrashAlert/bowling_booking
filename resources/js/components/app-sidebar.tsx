@@ -1,5 +1,5 @@
-import { Link } from '@inertiajs/react';
-import { BookOpen, FolderGit2, LayoutGrid } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import { BookOpen, Columns3, FolderGit2, LayoutGrid } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -14,6 +14,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { board } from '@/routes/staff';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -37,7 +38,20 @@ const footerNavItems: NavItem[] = [
     },
 ];
 
+const staffNavItems: NavItem[] = [
+    {
+        title: 'Lane board',
+        href: board(),
+        icon: Columns3,
+    },
+];
+
 export function AppSidebar() {
+    const { auth, version } = usePage().props;
+    const navItems = auth.user.role
+        ? [...mainNavItems, ...staffNavItems]
+        : mainNavItems;
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -53,12 +67,15 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain items={navItems} />
             </SidebarContent>
 
             <SidebarFooter>
                 <NavFooter items={footerNavItems} className="mt-auto" />
                 <NavUser />
+                <p className="px-2 text-xs text-muted-foreground tabular-nums group-data-[collapsible=icon]:hidden">
+                    Version {version}
+                </p>
             </SidebarFooter>
         </Sidebar>
     );

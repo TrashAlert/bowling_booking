@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AllocationStatus;
 use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
+use App\Exceptions\InvalidStateException;
 use App\Exceptions\NoLaneAvailableException;
 use App\Models\Booking;
 use App\Models\Customer;
@@ -78,6 +79,27 @@ class BookingService
             // Not enough lanes. Throwing here undoes everything in this
             // transaction, including the booking row created above.
             throw new NoLaneAvailableException($needed, $taken);
+        });
+    }
+
+    /**
+     * The party with a reservation has arrived: start their session, so the
+     * booking is no longer treated as a no-show.
+     *
+     * @throws InvalidStateException if the booking isn't a confirmed reservation.
+     */
+    public function checkIn(Booking $booking): Booking
+    {
+        return DB::transaction(function () use ($booking) {
+            $booking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+
+            if ($booking->status !== BookingStatus::Confirmed) {
+                throw new InvalidStateException('Only a confirmed reservation can be checked in.');
+            }
+
+            $booking->update(['status' => BookingStatus::CheckedIn]);
+
+            return $booking;
         });
     }
 

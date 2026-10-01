@@ -6,13 +6,13 @@ use App\Enums\AllocationStatus;
 use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
 use App\Enums\WaitlistStatus;
+use App\Exceptions\InvalidStateException;
 use App\Exceptions\NoLaneAvailableException;
 use App\Models\Customer;
 use App\Models\Package;
 use App\Models\WaitlistEntry;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 class WaitlistService
 {
@@ -31,6 +31,16 @@ class WaitlistService
             'party_size' => $partySize,
             'status' => WaitlistStatus::Waiting,
         ]);
+    }
+
+    // Add a party we have no customer record for yet, e.g. a walk-in at the desk.
+    public function joinAsNewCustomer(string $name, ?string $phone, Package $package, int $partySize): WaitlistEntry
+    {
+        return DB::transaction(function () use ($name, $phone, $package, $partySize) {
+            $customer = Customer::create(['name' => $name, 'phone' => $phone]);
+
+            return $this->join($customer, $package, $partySize);
+        });
     }
 
     /**
@@ -83,7 +93,7 @@ class WaitlistService
     /**
      * The called party has arrived at the desk: start their session.
      *
-     * @throws RuntimeException if they weren't called, or their call already expired.
+     * @throws InvalidStateException if they weren't called, or their call already expired.
      */
     public function seat(WaitlistEntry $entry): WaitlistEntry
     {
@@ -91,7 +101,7 @@ class WaitlistService
             $entry = WaitlistEntry::query()->lockForUpdate()->findOrFail($entry->id);
 
             if ($entry->status !== WaitlistStatus::Called || $entry->booking?->status !== BookingStatus::Pending) {
-                throw new RuntimeException('This party is not currently called, or their call has expired.');
+                throw new InvalidStateException('This party is not currently called, or their call has expired.');
             }
 
             $entry->booking->allocations()
@@ -110,6 +120,12 @@ class WaitlistService
     public function leave(WaitlistEntry $entry): void
     {
         $this->removeFromLine($entry, WaitlistStatus::Left);
+    }
+
+    // Staff gave up on a party, e.g. they were called and didn't turn up.
+    public function skip(WaitlistEntry $entry): void
+    {
+        $this->removeFromLine($entry, WaitlistStatus::Skipped);
     }
 
     /**
