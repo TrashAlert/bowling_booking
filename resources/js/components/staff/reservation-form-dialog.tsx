@@ -42,6 +42,7 @@ import type {
 export function ReservationFormDialog({
     reservation,
     day,
+    search,
     session,
     limits,
     laneOptions,
@@ -50,6 +51,8 @@ export function ReservationFormDialog({
     reservation?: ReservationDetail;
     // The day the list is showing, used as the starting date for a new one.
     day: string;
+    // What the list is being searched for, so a lane lookup keeps the search.
+    search: string | null;
     session: SessionRules;
     limits: ReservationLimits;
     laneOptions: LaneOption[] | undefined;
@@ -102,6 +105,7 @@ export function ReservationFormDialog({
                 query: {
                     date: day,
                     tz: browserTimeZone(),
+                    ...(search ? { search } : {}),
                     starts_at: startsAt,
                     minutes,
                     ...(reservation ? { booking: reservation.id } : {}),
@@ -116,7 +120,7 @@ export function ReservationFormDialog({
                 onFinish: () => setLoading(false),
             },
         );
-    }, [startsAt, minutes, lanesKey, lanesMissing, reservation, day]);
+    }, [startsAt, minutes, lanesKey, lanesMissing, reservation, day, search]);
 
     const people = Number(partySize);
     const usualLanes = Math.ceil(people / session.maxPlayersPerLane);

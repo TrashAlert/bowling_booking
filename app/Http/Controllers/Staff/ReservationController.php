@@ -27,6 +27,8 @@ class ReservationController extends Controller
     /**
      * Show one day's reservations. The day is a calendar date in the time
      * zone of the device asking, since the venue has no time zone set yet.
+     * With a search term, the reservations matching it on any day are shown
+     * in place of the day's.
      *
      * The lanes for the reservation form are only worked out when the form
      * asks for them, for the start time and length it has at that moment.
@@ -36,21 +38,27 @@ class ReservationController extends Controller
         $query = $request->validate([
             'date' => ['nullable', 'date_format:Y-m-d'],
             'tz' => ['nullable', 'timezone'],
+            'search' => ['nullable', 'string', 'max:100'],
         ]);
 
         $timeZone = $query['tz'] ?? 'UTC';
         $date = $query['date'] ?? CarbonImmutable::now($timeZone)->toDateString();
         $dayStart = CarbonImmutable::parse($date, $timeZone)->startOfDay();
+        $search = $query['search'] ?? null;
 
         return Inertia::render('staff/reservations', [
             'date' => $date,
-            // Midnight to midnight on that device's clock; 23 or 25 hours on a clock-change day.
-            'reservations' => $schedule->between($dayStart, $dayStart->addDay()),
+            'search' => $search,
+            'reservations' => $search === null
+                // Midnight to midnight on that device's clock; 23 or 25 hours on a clock-change day.
+                ? $schedule->between($dayStart, $dayStart->addDay())
+                : $schedule->search($search),
             'session' => $board->sessionRules(),
             'limits' => [
                 'maxPartySize' => ReservationRequest::MAX_PARTY_SIZE,
                 'leadMinutes' => config('bowling.reservation_lead_minutes'),
                 'maxDaysAhead' => config('bowling.reservation_max_days_ahead'),
+                'searchLimit' => ReservationSchedule::SEARCH_LIMIT,
             ],
             'laneOptions' => $this->laneOptions($request, $availability),
             'serverNow' => now()->toIso8601String(),

@@ -160,4 +160,6 @@ export type ReservationLimits = {
     // How long before a reservation its lanes close to everyone.
     leadMinutes: number;
     maxDaysAhead: number;
+    // The most reservations a search lists.
+    searchLimit: number;
 };

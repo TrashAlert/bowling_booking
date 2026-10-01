@@ -16,6 +16,21 @@ export function formatDate(date: string): string {
     return dateFormat.format(new Date(`${date}T12:00`));
 }
 
+const shortDateFormat = new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+});
+
+/**
+ * Show the date a UTC timestamp falls on for the viewer, in brief, e.g.
+ * "Mon, 5 Oct 2026". For lists that mix several days.
+ */
+export function formatShortDate(iso: string): string {
+    return shortDateFormat.format(new Date(iso));
+}
+
 const dayFormat = new Intl.DateTimeFormat(undefined, { weekday: 'long' });
 
 /**

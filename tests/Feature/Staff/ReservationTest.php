@@ -53,7 +53,8 @@ describe('the reservations page', function () {
                 ->where('lanes', [['id' => $lane->id, 'number' => 3]])
                 ->etc())
             ->where('session', ['stepMinutes' => 30, 'maxMinutes' => 240, 'maxPlayersPerLane' => 6])
-            ->where('limits', ['maxPartySize' => 200, 'leadMinutes' => 60, 'maxDaysAhead' => 90])
+            ->where('search', null)
+            ->where('limits', ['maxPartySize' => 200, 'leadMinutes' => 60, 'maxDaysAhead' => 90, 'searchLimit' => 50])
             ->where('serverNow', '2026-10-01T10:00:00+00:00')
             ->missing('laneOptions'));
         $sameDay->assertInertia(fn (Assert $page) => $page->has('reservations', 0));
@@ -65,6 +66,29 @@ describe('the reservations page', function () {
             ->get(route('staff.reservations.index', ['tz' => 'Pacific/Kiritimati']));
 
         $response->assertInertia(fn (Assert $page) => $page->where('date', '2026-10-02'));
+    });
+
+    test('a search lists the matching reservations of every day in place of the day', function () {
+        $lane = Lane::factory()->create();
+        $match = reserveLanes($lane, now()->addDays(5), name: 'Farah Aziz');
+        reserveLanes($lane, now()->addHours(3), name: 'Daniel Lee');
+
+        $response = $this->actingAs(User::factory()->staff()->create())
+            ->get(route('staff.reservations.index', ['date' => '2026-10-01', 'tz' => 'UTC', 'search' => 'farah']));
+
+        $response->assertInertia(fn (Assert $page) => $page
+            ->where('search', 'farah')
+            ->has('reservations', 1, fn (Assert $row) => $row
+                ->where('id', $match->id)
+                ->where('customerName', 'Farah Aziz')
+                ->etc()));
+    });
+
+    test('a search term of more than 100 characters is rejected', function () {
+        $response = $this->actingAs(User::factory()->staff()->create())
+            ->get(route('staff.reservations.index', ['search' => str_repeat('a', 101)]));
+
+        $response->assertSessionHasErrors(['search' => 'The search field must not be greater than 100 characters.']);
     });
 
     test('an unknown time zone is rejected', function () {

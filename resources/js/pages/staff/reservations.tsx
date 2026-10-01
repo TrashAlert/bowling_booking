@@ -14,6 +14,7 @@ import {
     formatDate,
     formatLanes,
     formatSessionLength,
+    formatShortDate,
     formatTime,
 } from '@/lib/format';
 import { reservationsPage } from '@/lib/reservations';
@@ -29,6 +30,8 @@ import type {
 
 type Props = {
     date: string;
+    // Set while the list shows a search across every day, not the day's own.
+    search: string | null;
     reservations: ReservationDetail[];
     session: SessionRules;
     limits: ReservationLimits;
@@ -73,6 +76,9 @@ const filters = {
 
 type Filter = keyof typeof filters;
 
+// How long after the last keystroke a search is sent.
+const SEARCH_DELAY_MS = 300;
+
 type OpenDialog =
     | { kind: 'create' }
     | { kind: 'change'; reservation: ReservationDetail }
@@ -82,12 +88,15 @@ type OpenDialog =
 function ReservationRow({
     row,
     now,
+    showDate,
     onChange,
     onCancel,
     onMove,
 }: {
     row: ReservationDetail;
     now: number;
+    // Search results come from several days, so each row names its own.
+    showDate: boolean;
     onChange: () => void;
     onCancel: () => void;
     onMove: () => void;
@@ -97,9 +106,16 @@ function ReservationRow({
 
     return (
         <li className="flex flex-wrap items-center gap-x-4 gap-y-2 p-4">
-            <p className="w-36 shrink-0 font-medium tabular-nums">
-                {formatTime(row.startsAt)} – {formatTime(row.endsAt)}
-            </p>
+            <div className="w-36 shrink-0">
+                {showDate && (
+                    <p className="text-sm text-muted-foreground">
+                        {formatShortDate(row.startsAt)}
+                    </p>
+                )}
+                <p className="font-medium tabular-nums">
+                    {formatTime(row.startsAt)} – {formatTime(row.endsAt)}
+                </p>
+            </div>
 
             <div className="min-w-0 flex-1 basis-56">
                 <p className="flex items-center gap-2 font-medium">
@@ -157,6 +173,7 @@ function ReservationRow({
 
 export default function Reservations({
     date,
+    search,
     reservations,
     session,
     limits,
@@ -165,6 +182,7 @@ export default function Reservations({
 }: Props) {
     const [filter, setFilter] = useState<Filter>('all');
     const [dialog, setDialog] = useState<OpenDialog | null>(null);
+    const [term, setTerm] = useState(search ?? '');
     const now = useServerClock(serverNow);
 
     // The server can't know this device's time zone on the first visit, so it
@@ -174,6 +192,26 @@ export default function Reservations({
             router.visit(reservationsPage(), { replace: true });
         }
     }, []);
+
+    // Search once staff pause typing. Emptying the box brings the day back.
+    useEffect(() => {
+        const wanted = term.trim();
+
+        if (wanted === (search ?? '')) {
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            router.visit(reservationsPage(date, wanted), {
+                only: ['reservations', 'search'],
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+            });
+        }, SEARCH_DELAY_MS);
+
+        return () => window.clearTimeout(timer);
+    }, [term, search, date]);
 
     const shown = reservations.filter(filters[filter].matches);
 
@@ -188,7 +226,9 @@ export default function Reservations({
                             Reservations
                         </h1>
                         <p className="text-sm text-muted-foreground">
-                            {formatDate(date)}
+                            {search
+                                ? `Matching “${search}” on any day`
+                                : formatDate(date)}
                         </p>
                     </div>
 
@@ -230,31 +270,55 @@ export default function Reservations({
                     </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                    {(Object.keys(filters) as Filter[]).map((key) => (
-                        <Button
-                            key={key}
-                            variant={filter === key ? 'secondary' : 'ghost'}
-                            size="sm"
-                            aria-pressed={filter === key}
-                            onClick={() => setFilter(key)}
-                        >
-                            {filters[key].label}
-                            <span className="text-muted-foreground tabular-nums">
-                                {
-                                    reservations.filter(filters[key].matches)
-                                        .length
-                                }
-                            </span>
-                        </Button>
-                    ))}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap gap-2">
+                        {(Object.keys(filters) as Filter[]).map((key) => (
+                            <Button
+                                key={key}
+                                variant={filter === key ? 'secondary' : 'ghost'}
+                                size="sm"
+                                aria-pressed={filter === key}
+                                onClick={() => setFilter(key)}
+                            >
+                                {filters[key].label}
+                                <span className="text-muted-foreground tabular-nums">
+                                    {
+                                        reservations.filter(
+                                            filters[key].matches,
+                                        ).length
+                                    }
+                                </span>
+                            </Button>
+                        ))}
+                    </div>
+
+                    <Input
+                        type="search"
+                        aria-label="Search reservations by name or phone number"
+                        placeholder="Search name or phone"
+                        value={term}
+                        onChange={(event) => setTerm(event.target.value)}
+                        maxLength={100}
+                        autoComplete="off"
+                        className="w-full sm:w-64"
+                    />
                 </div>
+
+                {search && reservations.length >= limits.searchLimit && (
+                    <p className="text-sm text-muted-foreground">
+                        Only the {limits.searchLimit} most recently made matches
+                        are shown. Type more of the name or number to narrow it
+                        down.
+                    </p>
+                )}
 
                 {shown.length === 0 ? (
                     <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-                        {reservations.length === 0
-                            ? 'No reservations on this day.'
-                            : 'No reservations match this filter.'}
+                        {reservations.length > 0
+                            ? 'No reservations match this filter.'
+                            : search
+                              ? `No reservations match “${search}”.`
+                              : 'No reservations on this day.'}
                     </p>
                 ) : (
                     <ul className="divide-y rounded-xl border bg-card text-card-foreground shadow-sm">
@@ -263,6 +327,7 @@ export default function Reservations({
                                 key={row.id}
                                 row={row}
                                 now={now}
+                                showDate={search !== null}
                                 onChange={() =>
                                     setDialog({
                                         kind: 'change',
@@ -299,7 +364,12 @@ export default function Reservations({
                     laneOptions={laneOptions}
                     lookup={(query) =>
                         index({
-                            query: { date, tz: browserTimeZone(), ...query },
+                            query: {
+                                date,
+                                tz: browserTimeZone(),
+                                ...(search ? { search } : {}),
+                                ...query,
+                            },
                         })
                     }
                     onClose={() => setDialog(null)}
@@ -313,6 +383,7 @@ export default function Reservations({
                             : undefined
                     }
                     day={date}
+                    search={search}
                     session={session}
                     limits={limits}
                     laneOptions={laneOptions}
