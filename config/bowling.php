@@ -6,7 +6,7 @@ return [
 
     // The version shown in the staff sidebar. Not read from .env: raise it
     // here with each change that should be tracked.
-    'version' => '0.4.4a',
+    'version' => '0.5.0',
 
     // Sessions are booked in steps of this many minutes. One step is also the
     // shortest session.
