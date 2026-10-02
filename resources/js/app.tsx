@@ -15,6 +15,7 @@ void createInertiaApp({
             // Pages for customers stand alone, without the staff sidebar.
             case name === 'welcome':
             case name.startsWith('waitlist/'):
+            case name.startsWith('reserve/'):
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
