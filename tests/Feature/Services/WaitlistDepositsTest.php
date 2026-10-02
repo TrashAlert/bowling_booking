@@ -1,10 +1,12 @@
 <?php
 
 use App\Enums\DepositOutcome;
+use App\Enums\LaneStatus;
 use App\Enums\WaitlistStatus;
 use App\Models\Lane;
 use App\Models\WaitlistDeposit;
 use App\Models\WaitlistEntry;
+use App\Services\BookingService;
 use App\Services\WaitlistDeposits;
 use App\Services\WaitlistService;
 
@@ -22,6 +24,30 @@ test('asking to join online notes the request without putting the party in line'
     $this->assertDatabaseCount('waitlist_entries', 0);
     $this->assertDatabaseCount('customers', 0);
 });
+
+test('no deposit is asked for while a lane is free, and the party is in line at once', function () {
+    Lane::factory()->create();
+
+    $deposit = app(WaitlistDeposits::class)->start('Farah', '0123456789', 90, 5);
+
+    expect($deposit->amount_cents)->toBe(0)
+        ->and($deposit->entry->status)->toBe(WaitlistStatus::Waiting)
+        ->and($deposit->entry->customer->name)->toBe('Farah');
+});
+
+test('the deposit applies once the party would have to wait for a lane', function (Closure $busy) {
+    $busy(Lane::factory()->create());
+
+    $deposit = app(WaitlistDeposits::class)->start('Farah', '0123456789', 60, 5);
+
+    expect($deposit->amount_cents)->toBe(1000)
+        ->and($deposit->entry)->toBeNull();
+})->with([
+    'the lane is in play' => [fn (Lane $lane) => app(BookingService::class)->checkIn(reserveLanes($lane, now()))],
+    'the lane is out of order' => [fn (Lane $lane) => $lane->update(['status' => LaneStatus::OutOfOrder])],
+    'someone is already waiting for the lane' => [fn () => joinWaitlist()],
+    'the session would run into a reservation' => [fn (Lane $lane) => reserveLanes($lane, now()->addMinutes(90))],
+]);
 
 test('the deposit amount comes from the config', function () {
     config(['bowling.waitlist_deposit_cents' => 2500]);

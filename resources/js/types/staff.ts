@@ -91,8 +91,12 @@ export type WaitlistRow = {
     calledAt: string | null;
     checkInBy: string | null;
     laneNumbers: number[];
-    // The deposit a party that joined online has paid, in cents; null for a
-    // walk-in added at the counter. It comes off the party's bill.
+    // True for a party that joined online; false for a walk-in added at the
+    // counter.
+    joinedOnline: boolean;
+    // The deposit the party paid to join online, in cents, which comes off
+    // its bill. Null if it paid none: a walk-in, or a lane was free as it
+    // joined.
     depositCents: number | null;
 };
 

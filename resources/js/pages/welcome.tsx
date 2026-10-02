@@ -28,7 +28,7 @@ const actions = [
             'Walking in? Add your group to the line and we will call you when a lane is ready.',
         action: 'Join the waitlist',
         badge: 'Trial',
-        note: 'A deposit is paid to join online.',
+        note: 'A deposit is only needed when every lane is busy.',
         href: join(),
     },
     {

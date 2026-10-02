@@ -5,8 +5,10 @@ use App\Enums\BookingSource;
 use App\Models\Customer;
 use App\Models\Lane;
 use App\Models\LaneAllocation;
+use App\Models\WaitlistDeposit;
 use App\Services\BookingService;
 use App\Services\LaneBoard;
+use App\Services\WaitlistDeposits;
 use App\Services\WaitlistService;
 
 beforeEach(function () {
@@ -255,21 +257,30 @@ test('the waitlist lists parties in line in order and never exposes their token'
             'calledAt' => null,
             'checkInBy' => null,
             'laneNumbers' => [],
+            'joinedOnline' => false,
             'depositCents' => null,
         ])
         ->and($waitlist[1]['customerName'])->toBe('Second')
         ->and($waitlist[1]['position'])->toBe(2);
 });
 
-test('a party that joined online shows the deposit it paid', function () {
+test('a party that joined online is marked, with the deposit it paid if any', function () {
     joinWaitlist(name: 'At the counter');
-    joinWaitlistOnline(name: 'Online');
+    joinWaitlistOnline(name: 'Online with a deposit');
+    app(WaitlistDeposits::class)->confirmPayment(
+        WaitlistDeposit::factory()->create(['name' => 'Online with a lane free', 'amount_cents' => 0]),
+    );
 
     $waitlist = app(LaneBoard::class)->waitlist();
 
-    expect(array_column($waitlist, 'depositCents', 'customerName'))->toBe([
+    expect(array_column($waitlist, 'joinedOnline', 'customerName'))->toBe([
+        'At the counter' => false,
+        'Online with a deposit' => true,
+        'Online with a lane free' => true,
+    ])->and(array_column($waitlist, 'depositCents', 'customerName'))->toBe([
         'At the counter' => null,
-        'Online' => 1000,
+        'Online with a deposit' => 1000,
+        'Online with a lane free' => null,
     ]);
 });
 

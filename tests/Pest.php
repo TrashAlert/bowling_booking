@@ -4,6 +4,7 @@ use App\Enums\BookingSource;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Lane;
+use App\Models\WaitlistDeposit;
 use App\Models\WaitlistEntry;
 use App\Services\BookingService;
 use App\Services\WaitlistDeposits;
@@ -99,12 +100,15 @@ function joinWaitlist(int $minutes = 60, int $partySize = 4, string $name = 'Wal
 }
 
 /**
- * Put a party in line the way one that joins online gets there: it asks to
- * join, then pays its deposit.
+ * Put a party in line that joined online and paid a deposit for it, whether
+ * or not a lane happens to be free.
  */
 function joinWaitlistOnline(int $minutes = 60, int $partySize = 4, string $name = 'Online party'): WaitlistEntry
 {
-    $deposits = app(WaitlistDeposits::class);
-
-    return $deposits->confirmPayment($deposits->start($name, '0123456789', $minutes, $partySize));
+    return app(WaitlistDeposits::class)->confirmPayment(WaitlistDeposit::factory()->create([
+        'name' => $name,
+        'phone' => '0123456789',
+        'minutes' => $minutes,
+        'party_size' => $partySize,
+    ]));
 }

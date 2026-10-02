@@ -22,6 +22,7 @@ import {
     formatMoney,
     formatSessionLength,
     formatTime,
+    formatWait,
 } from '@/lib/format';
 import { join } from '@/routes/waitlist';
 import type { WaitlistTicket } from '@/types';
@@ -98,6 +99,13 @@ function Status({
                                 ? 'You are next'
                                 : `${ticket.partiesAhead} ${ticket.partiesAhead === 1 ? 'group' : 'groups'} ahead of you`}
                         </p>
+                        {ticket.estimatedWaitMinutes !== null && (
+                            <p className="mt-3 font-medium">
+                                {ticket.estimatedWaitMinutes === 0
+                                    ? 'A lane should be ready any moment'
+                                    : `Estimated wait: ${formatWait(ticket.estimatedWaitMinutes)}`}
+                            </p>
+                        )}
                     </div>
                     <p className="text-sm text-muted-foreground">
                         Stay close by. When it is your turn this page will say

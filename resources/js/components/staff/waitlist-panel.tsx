@@ -24,7 +24,14 @@ function WaitlistEntry({ row, now }: { row: WaitlistRow; now: number }) {
                 </span>
 
                 <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{row.customerName}</p>
+                    <p className="flex items-center gap-2 font-medium">
+                        <span className="truncate">{row.customerName}</span>
+                        {row.joinedOnline && (
+                            <Badge className="border-transparent bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-300">
+                                Online
+                            </Badge>
+                        )}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                         {row.partySize}{' '}
                         {row.partySize === 1 ? 'person' : 'people'} ·{' '}
@@ -32,7 +39,6 @@ function WaitlistEntry({ row, now }: { row: WaitlistRow; now: number }) {
                     </p>
                     {row.depositCents !== null && (
                         <p className="text-sm text-muted-foreground">
-                            Online ·{' '}
                             {formatMoney(row.depositCents, currencySymbol)}{' '}
                             deposit paid
                         </p>

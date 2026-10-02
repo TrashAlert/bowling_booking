@@ -13,6 +13,8 @@ use App\Models\WaitlistEntry;
  */
 class WaitlistTicket
 {
+    public function __construct(private WaitlistEstimate $estimate) {}
+
     /**
      * What one party sees about itself. Nothing about any other party is
      * included, and neither is any secret token.
@@ -25,6 +27,7 @@ class WaitlistTicket
      *     joinedAt: string,
      *     position: int|null,
      *     partiesAhead: int|null,
+     *     estimatedWaitMinutes: int|null,
      *     laneNumbers: list<int>,
      *     checkInBy: string|null,
      *     sessionEndsAt: string|null,
@@ -54,6 +57,8 @@ class WaitlistTicket
             'joinedAt' => $entry->created_at->toIso8601String(),
             'position' => $position,
             'partiesAhead' => $position === null ? null : $position - 1,
+            // A rough guess while waiting; null once called or out of the line.
+            'estimatedWaitMinutes' => $this->estimate->forEntry($entry),
             'laneNumbers' => $lanes->pluck('lane.number')->sort()->values()->all(),
             'checkInBy' => $entry->status === WaitlistStatus::Called
                 ? $lanes->min('held_until')?->toIso8601String()
@@ -61,7 +66,9 @@ class WaitlistTicket
             'sessionEndsAt' => $entry->status === WaitlistStatus::Seated
                 ? $lanes->max('ends_at')?->toIso8601String()
                 : null,
-            'deposit' => $entry->deposit === null ? null : [
+            // Nothing to tell a party that paid nothing: a walk-in, or one that
+            // joined online while a lane was free.
+            'deposit' => ($entry->deposit?->amount_cents ?? 0) === 0 ? null : [
                 'amountCents' => $entry->deposit->amount_cents,
                 'outcome' => $entry->deposit->outcome()?->value,
             ],

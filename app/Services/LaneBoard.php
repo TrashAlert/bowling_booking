@@ -133,6 +133,7 @@ class LaneBoard
      *     calledAt: string|null,
      *     checkInBy: string|null,
      *     laneNumbers: list<int>,
+     *     joinedOnline: bool,
      *     depositCents: int|null,
      * }>
      */
@@ -157,8 +158,10 @@ class LaneBoard
                     'calledAt' => $entry->called_at?->toIso8601String(),
                     'checkInBy' => $held->min('held_until')?->toIso8601String(),
                     'laneNumbers' => $held->pluck('lane.number')->sort()->values()->all(),
-                    // What a party that joined online paid, to take off its bill.
-                    'depositCents' => $entry->deposit?->amount_cents,
+                    'joinedOnline' => $entry->deposit !== null,
+                    // What the party paid to join online, to take off its bill.
+                    // Null if it paid nothing: a lane was free as it joined.
+                    'depositCents' => ($entry->deposit?->amount_cents ?? 0) === 0 ? null : $entry->deposit->amount_cents,
                 ];
             })
             ->all();

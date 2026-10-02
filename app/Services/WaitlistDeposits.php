@@ -7,27 +7,51 @@ use App\Models\WaitlistEntry;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Joining the waitlist online. A party pays a deposit first and is only put
- * in line once it is paid. Walk-ins added by staff at the counter don't come
- * through here and pay no deposit.
+ * Joining the waitlist online. While a lane is free for the party no deposit
+ * is asked for and it goes straight into the line. Otherwise it pays a
+ * deposit first and is only put in line once that is paid. Walk-ins added by
+ * staff at the counter don't come through here and pay no deposit.
  */
 class WaitlistDeposits
 {
-    public function __construct(private WaitlistService $waitlist) {}
+    public function __construct(
+        private WaitlistService $waitlist,
+        private WaitlistEstimate $estimate,
+    ) {}
 
     /**
-     * Note what a party wants and how much it has to pay. It isn't in line
-     * yet, and takes no place in it.
+     * Note what a party wants and how much it has to pay. With nothing to
+     * pay it is put in line at once; otherwise it isn't in line yet and
+     * takes no place in it.
      */
     public function start(string $name, string $phone, int $minutes, int $partySize): WaitlistDeposit
     {
-        return WaitlistDeposit::create([
+        $deposit = WaitlistDeposit::create([
             'name' => $name,
             'phone' => $phone,
             'minutes' => $minutes,
             'party_size' => $partySize,
-            'amount_cents' => config('bowling.waitlist_deposit_cents'),
+            'amount_cents' => $this->amountDue($minutes),
         ]);
+
+        if ($deposit->amount_cents === 0) {
+            $this->confirmPayment($deposit);
+        }
+
+        return $deposit->refresh();
+    }
+
+    /**
+     * What a party joining now for a session of $minutes has to pay, in
+     * cents: nothing while a lane is free for it straight away, and the
+     * deposit once it would have to wait. A lane others are already waiting
+     * for is not free for it.
+     */
+    public function amountDue(int $minutes): int
+    {
+        $wait = $this->estimate->forNewParty()[$minutes] ?? null;
+
+        return $wait === 0 ? 0 : config('bowling.waitlist_deposit_cents');
     }
 
     /**

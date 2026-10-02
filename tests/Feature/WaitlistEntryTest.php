@@ -2,6 +2,8 @@
 
 use App\Enums\WaitlistStatus;
 use App\Models\Lane;
+use App\Services\BookingService;
+use App\Services\WaitlistDeposits;
 use App\Services\WaitlistService;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -26,6 +28,7 @@ test('a waiting party sees its place in line and nothing about anyone else', fun
             'joinedAt' => '2026-10-01T18:01:00+00:00',
             'position' => 2,
             'partiesAhead' => 1,
+            'estimatedWaitMinutes' => null,
             'laneNumbers' => [],
             'checkInBy' => null,
             'sessionEndsAt' => null,
@@ -39,6 +42,19 @@ test('a waiting party sees its place in line and nothing about anyone else', fun
         ->not->toContain($ahead->token);
 });
 
+test('a waiting party sees how long it is likely to wait', function () {
+    $lane = Lane::factory()->create();
+    app(BookingService::class)->checkIn(reserveLanes($lane, now(), minutes: 60));
+    joinWaitlist(minutes: 30, name: 'Party ahead');
+    $entry = joinWaitlistOnline();
+
+    $response = $this->get(route('waitlist.show', ['entry' => $entry->token]));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('ticket.status', 'waiting')
+        ->where('ticket.estimatedWaitMinutes', 90));
+});
+
 test('a called party sees its lane and when it must check in by', function () {
     Lane::factory()->create(['number' => 4]);
     $entry = joinWaitlistOnline();
@@ -48,6 +64,7 @@ test('a called party sees its lane and when it must check in by', function () {
 
     $response->assertInertia(fn (Assert $page) => $page
         ->where('ticket.status', 'called')
+        ->where('ticket.estimatedWaitMinutes', null)
         ->where('ticket.position', 1)
         ->where('ticket.laneNumbers', [4])
         ->where('ticket.checkInBy', '2026-10-01T18:05:00+00:00')
@@ -110,6 +127,17 @@ test('leaving changes nothing for a party that is already playing', function () 
 
     $response->assertRedirect(route('waitlist.show', ['entry' => $entry->token]));
     expect($entry->refresh()->status)->toBe(WaitlistStatus::Seated);
+});
+
+test('a party that joined online while a lane was free has no deposit on its page', function () {
+    Lane::factory()->create();
+    $entry = app(WaitlistDeposits::class)->start('Farah', '0123456789', 60, 4)->entry;
+
+    $response = $this->get(route('waitlist.show', ['entry' => $entry->token]));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('ticket.customerName', 'Farah')
+        ->where('ticket.deposit', null));
 });
 
 test('a walk-in added by staff has no deposit on its page', function () {

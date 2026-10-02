@@ -11,9 +11,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
 /**
- * The deposit a party pays to join the waitlist online. It holds what the
- * party asked for until the deposit is paid; only then is the party put in
- * line. Walk-ins added by staff at the counter have no deposit.
+ * A party's request to join the waitlist online, and the deposit it pays for
+ * it. It holds what the party asked for until the deposit is paid; only then
+ * is the party put in line. The amount is zero when a lane was free for the
+ * party as it joined: nothing is paid and it is in line at once. Walk-ins
+ * added by staff at the counter have no record here.
  */
 class WaitlistDeposit extends Model
 {

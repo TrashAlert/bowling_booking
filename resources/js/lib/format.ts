@@ -91,6 +91,14 @@ export function formatLanes(numbers: number[]): string {
 }
 
 /**
+ * A wait as a customer is told it, rounded up to five minutes so it doesn't
+ * promise more than an estimate can, e.g. "about 25 min".
+ */
+export function formatWait(minutes: number): string {
+    return `about ${formatMinutes(Math.ceil(minutes / 5) * 5 * 60_000)}`;
+}
+
+/**
  * An amount of money kept in cents, e.g. "RM 10.00".
  */
 export function formatMoney(cents: number, symbol: string): string {

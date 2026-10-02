@@ -14,6 +14,9 @@ export type WaitlistTicket = {
     // 1 means next in line. Null once the party is no longer in line.
     position: number | null;
     partiesAhead: number | null;
+    // A rough guess of the minutes left to wait; null once called or out of
+    // the line, or when no lane can be found.
+    estimatedWaitMinutes: number | null;
     // The lanes held for the party once called, then the lanes it plays on.
     laneNumbers: number[];
     // When a called party must have checked in by.

@@ -1,6 +1,9 @@
 <?php
 
+use App\Enums\WaitlistStatus;
+use App\Models\Lane;
 use App\Models\WaitlistDeposit;
+use App\Models\WaitlistEntry;
 use Inertia\Testing\AssertableInertia as Assert;
 
 /**
@@ -31,6 +34,19 @@ test('anyone can open the waitlist page without logging in', function () {
         ->where('currencySymbol', 'RM'));
 });
 
+test('the waitlist page gives the likely wait for each session length', function () {
+    $this->travelTo('2026-10-01 18:00:00');
+    // The lane closes at 18:30 for a reservation from 19:30 to 20:30.
+    reserveLanes(Lane::factory()->create(), now()->addMinutes(90), minutes: 60);
+
+    $response = $this->get(route('waitlist.join'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('waitMinutes.30', 0)
+        ->where('waitMinutes.60', 150)
+        ->where('waitMinutes.240', 150));
+});
+
 test('joining saves the request and sends the party to pay, without putting it in line', function () {
     $response = $this->post(route('waitlist.store'), joinForm());
 
@@ -45,6 +61,18 @@ test('joining saves the request and sends the party to pay, without putting it i
         'paid_at' => null,
     ]);
     $this->assertDatabaseCount('waitlist_entries', 0);
+});
+
+test('joining while a lane is free puts the party in line with no deposit to pay', function () {
+    Lane::factory()->create();
+
+    $response = $this->post(route('waitlist.store'), joinForm());
+
+    $entry = WaitlistEntry::query()->sole();
+    $response->assertRedirect(route('waitlist.show', ['entry' => $entry->token]));
+    expect($entry->status)->toBe(WaitlistStatus::Waiting)
+        ->and($entry->customer->name)->toBe('Farah Aziz')
+        ->and($entry->deposit->amount_cents)->toBe(0);
 });
 
 test('the name, phone, party size and session length are required', function () {
