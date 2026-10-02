@@ -1,12 +1,13 @@
 <?php
 
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ReserveLaneController;
 use App\Http\Controllers\WaitlistDepositController;
 use App\Http\Controllers\WaitlistEntryController;
 use App\Http\Controllers\WaitlistJoinController;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
+Route::get('/', HomeController::class)->name('home');
 
 // Joining the waitlist online: the form, the deposit, then the party's own
 // page. The last two are reached by a secret token in the address.

@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, usePage, usePoll } from '@inertiajs/react';
 import { CalendarClock, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,8 +10,12 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import { dashboard, login, reserve } from '@/routes';
 import { join } from '@/routes/waitlist';
+
+// How often the page asks again how many lanes are free.
+const POLL_INTERVAL_MS = 30_000;
 
 // What customers can do from this page. Joining the waitlist works, with a
 // stand-in for the deposit payment. Reserving opens a sample page that saves
@@ -39,8 +43,46 @@ const actions = [
     },
 ];
 
-export default function Welcome() {
+/**
+ * How many lanes are free right now, so a customer can choose between
+ * walking in and booking ahead. Shown once the venue has lanes.
+ */
+function LanesFree({ free, total }: { free: number; total: number }) {
+    if (total === 0) {
+        return null;
+    }
+
+    return (
+        <div className="mx-auto mt-6 w-fit rounded-xl border px-5 py-3">
+            <p className="flex items-center justify-center gap-2 font-medium">
+                <span
+                    aria-hidden
+                    className={cn(
+                        'size-2.5 rounded-full',
+                        free > 0 ? 'bg-emerald-500' : 'bg-amber-500',
+                    )}
+                />
+                {free > 0
+                    ? `${free} of ${total} ${total === 1 ? 'lane' : 'lanes'} free right now`
+                    : 'Every lane is in use right now'}
+            </p>
+            <p className="text-sm text-muted-foreground">
+                {free > 0
+                    ? 'Walk in and play, or reserve a lane for later.'
+                    : 'Join the waitlist, or reserve a lane for later.'}
+            </p>
+        </div>
+    );
+}
+
+export default function Welcome({
+    lanes,
+}: {
+    lanes: { free: number; total: number };
+}) {
     const { auth, name } = usePage().props;
+
+    usePoll(POLL_INTERVAL_MS, { only: ['lanes'] });
 
     return (
         <>
@@ -68,6 +110,7 @@ export default function Welcome() {
                         <p className="mt-3 text-lg text-muted-foreground">
                             Come and bowl. Walk in, or book a lane ahead.
                         </p>
+                        <LanesFree free={lanes.free} total={lanes.total} />
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
