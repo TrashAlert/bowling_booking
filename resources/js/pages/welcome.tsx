@@ -11,9 +11,11 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { dashboard, login } from '@/routes';
+import { join } from '@/routes/waitlist';
 
-// What customers will be able to do from this page. Neither is built yet, so
-// each is shown as a placeholder with its button switched off.
+// What customers will be able to do from this page. Neither is built yet: the
+// waitlist opens a sample page that saves nothing, and reservations are a
+// placeholder with the button switched off.
 const comingSoon = [
     {
         icon: Users,
@@ -21,6 +23,8 @@ const comingSoon = [
         description:
             'Walking in? Add your group to the line and we will call you when a lane is ready.',
         action: 'Join the waitlist',
+        badge: 'Sample',
+        href: join(),
     },
     {
         icon: CalendarClock,
@@ -28,6 +32,8 @@ const comingSoon = [
         description:
             'Planning ahead? Pick a date and time and we will keep a lane for you.',
         action: 'Make a reservation',
+        badge: 'Coming soon',
+        href: null,
     },
 ];
 
@@ -73,7 +79,7 @@ export default function Welcome() {
                                     <CardTitle className="flex items-center gap-2">
                                         {item.title}
                                         <Badge variant="secondary">
-                                            Coming soon
+                                            {item.badge}
                                         </Badge>
                                     </CardTitle>
                                     <CardDescription>
@@ -85,9 +91,17 @@ export default function Welcome() {
                                     counter.
                                 </CardContent>
                                 <CardFooter>
-                                    <Button className="w-full" disabled>
-                                        {item.action}
-                                    </Button>
+                                    {item.href ? (
+                                        <Button className="w-full" asChild>
+                                            <Link href={item.href}>
+                                                {item.action}
+                                            </Link>
+                                        </Button>
+                                    ) : (
+                                        <Button className="w-full" disabled>
+                                            {item.action}
+                                        </Button>
+                                    )}
                                 </CardFooter>
                             </Card>
                         ))}

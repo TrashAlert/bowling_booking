@@ -12,7 +12,9 @@ void createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     layout: (name) => {
         switch (true) {
+            // Pages for customers stand alone, without the staff sidebar.
             case name === 'welcome':
+            case name.startsWith('waitlist/'):
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
