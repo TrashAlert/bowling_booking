@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\WaitlistEntry;
+use App\Services\WaitlistPush;
 use App\Services\WaitlistService;
 use App\Services\WaitlistTicket;
 use Illuminate\Http\RedirectResponse;
@@ -15,10 +16,13 @@ class WaitlistEntryController extends Controller
      * Show a party its own place in line. The page is reached by the secret
      * link the party was given, and refreshes itself.
      */
-    public function show(WaitlistEntry $entry, WaitlistTicket $ticket): Response
+    public function show(WaitlistEntry $entry, WaitlistTicket $ticket, WaitlistPush $push): Response
     {
         return Inertia::render('waitlist/show', [
             'ticket' => $ticket->for($entry),
+            // The public half of the key pair, which the phone needs to turn
+            // notifications on. Null while notifications aren't set up.
+            'pushKey' => $push->isConfigured() ? config('services.web_push.public_key') : null,
             'checkInMinutes' => config('bowling.waitlist_checkin_minutes'),
             'serverNow' => now()->toIso8601String(),
         ]);

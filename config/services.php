@@ -28,6 +28,16 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // Push notifications to a waiting party's phone. The key pair is made
+    // once with "php artisan push:keys"; without it notifications are off.
+    'web_push' => [
+        'public_key' => env('VAPID_PUBLIC_KEY'),
+        'private_key' => env('VAPID_PRIVATE_KEY'),
+        // Who a push service can contact about these notifications: a
+        // "mailto:" address or the site's address.
+        'subject' => env('VAPID_SUBJECT') ?: env('APP_URL'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

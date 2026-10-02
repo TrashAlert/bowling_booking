@@ -15,6 +15,9 @@ import {
     DialogFooter,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { useCallAlert } from '@/hooks/use-call-alert';
+import { usePushAlert } from '@/hooks/use-push-alert';
+import type { PushAlertState } from '@/hooks/use-push-alert';
 import { useServerClock } from '@/hooks/use-server-clock';
 import {
     formatCountdown,
@@ -171,19 +174,95 @@ function Status({
     }
 }
 
+const pushNotes: Record<Exclude<PushAlertState, 'unsupported'>, string> = {
+    off: 'A notification reaches your phone even when it is locked or this page is closed.',
+    working: 'Turning notifications on…',
+    on: 'Notifications are on. We will notify this phone when you are called, even if it is locked.',
+    blocked:
+        'Notifications are blocked for this site. Allow them in your browser settings, then reload this page.',
+    failed: 'Notifications could not be turned on. Please try again.',
+};
+
+/**
+ * Lets a waiting party choose how to be alerted when it is called: a
+ * notification, which reaches a locked phone, and a chime, which only sounds
+ * while this page is open. The phone also vibrates with either, where it can.
+ */
+function CallAlert({
+    push,
+    onTurnOnPush,
+    canPlaySound,
+    soundOn,
+    onTurnOnSound,
+}: {
+    push: PushAlertState;
+    onTurnOnPush: () => void;
+    canPlaySound: boolean;
+    soundOn: boolean;
+    onTurnOnSound: () => void;
+}) {
+    return (
+        <div className="space-y-3 rounded-lg border p-3 text-sm">
+            <p className="font-medium">Get alerted when it is your turn</p>
+
+            {push !== 'unsupported' && (
+                <div>
+                    <p className="text-muted-foreground">{pushNotes[push]}</p>
+                    {(push === 'off' ||
+                        push === 'working' ||
+                        push === 'failed') && (
+                        <Button
+                            size="sm"
+                            className="mt-2"
+                            disabled={push === 'working'}
+                            onClick={onTurnOnPush}
+                        >
+                            Turn on notifications
+                        </Button>
+                    )}
+                </div>
+            )}
+
+            {canPlaySound && (
+                <div>
+                    <p className="text-muted-foreground">
+                        {soundOn
+                            ? 'Sound is on. Your phone will chime like that when you are called, while this page is open with the screen on and your phone off silent.'
+                            : 'A chime sounds while this page is open with the screen on.'}
+                    </p>
+                    {!soundOn && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-2"
+                            onClick={onTurnOnSound}
+                        >
+                            Turn on sound
+                        </Button>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
 /**
  * A party's own page about its place in the waitlist, reached by the secret
  * link it was given. It refreshes itself while the party is waiting, called
- * or playing. Leaving posts back to this page's own address.
+ * or playing, and alerts the party when it is called. Leaving posts back to
+ * this page's own address.
  */
 export default function WaitlistShow({
     ticket,
     checkInMinutes,
     serverNow,
+    pushKey,
 }: {
     ticket: WaitlistTicket;
     checkInMinutes: number;
     serverNow: string;
+    // The server's public key for notifications; null while they aren't set up.
+    pushKey: string | null;
 }) {
     const { props, url } = usePage();
     const now = useServerClock(serverNow);
@@ -192,9 +271,20 @@ export default function WaitlistShow({
     const inLine = ticket.status === 'waiting' || ticket.status === 'called';
     const isOver = ticket.status === 'skipped' || ticket.status === 'left';
 
-    const { stop } = usePoll(POLL_INTERVAL_MS, {
-        only: ['ticket', 'serverNow'],
-    });
+    // Kept going while the page is in the background, as far as the phone
+    // allows, so being called isn't noticed late.
+    const { stop } = usePoll(
+        POLL_INTERVAL_MS,
+        { only: ['ticket', 'serverNow'] },
+        { keepAlive: true },
+    );
+
+    const alert = useCallAlert(ticket.status === 'called');
+    const push = usePushAlert(
+        pushKey,
+        ticket.pushOn,
+        `${url.split('?')[0]}/push`,
+    );
 
     // Nothing more can change once the party is out of the line.
     useEffect(() => {
@@ -229,6 +319,18 @@ export default function WaitlistShow({
                         now={now}
                         checkInMinutes={checkInMinutes}
                     />
+
+                    {ticket.status === 'waiting' &&
+                        (alert.canPlaySound ||
+                            push.state !== 'unsupported') && (
+                            <CallAlert
+                                push={push.state}
+                                onTurnOnPush={push.turnOn}
+                                canPlaySound={alert.canPlaySound}
+                                soundOn={alert.soundOn}
+                                onTurnOnSound={alert.turnSoundOn}
+                            />
+                        )}
 
                     {note && <p className="text-sm font-medium">{note}</p>}
 

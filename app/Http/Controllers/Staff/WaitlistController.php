@@ -7,6 +7,7 @@ use App\Exceptions\InvalidStateException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Staff\StoreWalkInRequest;
 use App\Models\WaitlistEntry;
+use App\Services\WaitlistPush;
 use App\Services\WaitlistService;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -33,9 +34,13 @@ class WaitlistController extends Controller
     /**
      * Call the next parties now instead of waiting for the scheduler.
      */
-    public function callNext(WaitlistService $waitlist): RedirectResponse
+    public function callNext(WaitlistService $waitlist, WaitlistPush $push): RedirectResponse
     {
-        $called = count($waitlist->callNextParties());
+        $parties = $waitlist->callNextParties();
+        $called = count($parties);
+
+        // Sent once the page has gone back to staff, so they aren't kept waiting.
+        defer(fn () => $push->notifyCalled($parties));
 
         Inertia::flash('toast', $called > 0
             ? ['type' => 'success', 'message' => trans_choice('Called :count party.|Called :count parties.', $called)]

@@ -5,6 +5,7 @@ use App\Http\Controllers\ReserveLaneController;
 use App\Http\Controllers\WaitlistDepositController;
 use App\Http\Controllers\WaitlistEntryController;
 use App\Http\Controllers\WaitlistJoinController;
+use App\Http\Controllers\WaitlistPushSubscriptionController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
@@ -25,6 +26,10 @@ Route::get('waitlist/{entry:token}', [WaitlistEntryController::class, 'show'])
 Route::delete('waitlist/{entry:token}', [WaitlistEntryController::class, 'destroy'])
     ->where('entry', '[A-Za-z0-9]{40}')
     ->name('waitlist.destroy');
+Route::put('waitlist/{entry:token}/push', [WaitlistPushSubscriptionController::class, 'store'])
+    ->where('entry', '[A-Za-z0-9]{40}')
+    ->middleware('throttle:10,1')
+    ->name('waitlist.push.store');
 
 Route::get('reserve', ReserveLaneController::class)->name('reserve');
 

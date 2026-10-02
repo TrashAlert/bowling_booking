@@ -32,6 +32,7 @@ class WaitlistTicket
      *     checkInBy: string|null,
      *     sessionEndsAt: string|null,
      *     deposit: array{amountCents: int, outcome: string|null}|null,
+     *     pushOn: bool,
      * }
      */
     public function for(WaitlistEntry $entry): array
@@ -72,6 +73,8 @@ class WaitlistTicket
                 'amountCents' => $entry->deposit->amount_cents,
                 'outcome' => $entry->deposit->outcome()?->value,
             ],
+            // Whether a phone will be notified when the party is called.
+            'pushOn' => $entry->push_subscription !== null,
         ];
     }
 }

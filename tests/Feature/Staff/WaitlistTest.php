@@ -4,7 +4,10 @@ use App\Enums\WaitlistStatus;
 use App\Models\Lane;
 use App\Models\User;
 use App\Models\WaitlistEntry;
+use App\Services\WaitlistPush;
 use App\Services\WaitlistService;
+
+use function Pest\Laravel\mock;
 
 describe('adding a walk-in', function () {
     test('staff can add a walk-in party to the line', function () {
@@ -168,6 +171,18 @@ describe('calling the next party', function () {
         $response->assertRedirect(route('staff.board'))
             ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Called 1 party.']);
         expect($entry->refresh()->status)->toBe(WaitlistStatus::Called);
+    });
+
+    test('calling the next party notifies its phone', function () {
+        $this->withoutDefer();
+        Lane::factory()->create();
+        $entry = joinWaitlist();
+        mock(WaitlistPush::class)->shouldReceive('notifyCalled')->once()
+            ->withArgs(fn (array $called) => array_map(fn (WaitlistEntry $party) => $party->id, $called) === [$entry->id]);
+
+        $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.call-next'));
+
+        $response->assertRedirect(route('staff.board'));
     });
 
     test('staff are told when no waiting party fits a free lane', function () {

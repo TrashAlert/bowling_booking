@@ -116,7 +116,6 @@ return [
 
     'limiters' => [
         'login' => 'login',
-        'two-factor' => 'two-factor',
     ],
 
     /*
@@ -144,13 +143,13 @@ return [
     */
 
     'features' => [
-        Features::resetPasswords(),
+        // Resetting a forgotten password by email is switched off: an admin sets
+        // a new one under Settings, Users. To bring it back, restore this entry:
+        // Features::resetPasswords(),
         Features::emailVerification(),
-        Features::twoFactorAuthentication([
-            'confirm' => true,
-            'confirmPassword' => true,
-            // 'window' => 0
-        ]),
+        // Two-factor login is switched off for everyone, staff and admins
+        // alike. To bring it back, restore this entry:
+        // Features::twoFactorAuthentication(['confirm' => true, 'confirmPassword' => true]),
     ],
 
 ];

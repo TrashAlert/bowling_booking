@@ -33,6 +33,7 @@ test('a waiting party sees its place in line and nothing about anyone else', fun
             'checkInBy' => null,
             'sessionEndsAt' => null,
             'deposit' => ['amountCents' => 1000, 'outcome' => 'held'],
+            'pushOn' => false,
         ])
         ->where('checkInMinutes', 5)
         ->where('serverNow', '2026-10-01T18:01:00+00:00'));

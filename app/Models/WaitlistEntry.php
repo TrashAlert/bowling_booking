@@ -19,10 +19,12 @@ class WaitlistEntry extends Model
         'status',
         'called_at',
         'seated_at',
+        'push_subscription',
     ];
 
-    // Never send the secret token to the browser by accident.
-    protected $hidden = ['token'];
+    // Never send the secret token, or the phone's push address and keys, to
+    // the browser by accident.
+    protected $hidden = ['token', 'push_subscription'];
 
     protected function casts(): array
     {
@@ -32,6 +34,7 @@ class WaitlistEntry extends Model
             'status' => WaitlistStatus::class,
             'called_at' => 'datetime',
             'seated_at' => 'datetime',
+            'push_subscription' => 'array',
         ];
     }
 

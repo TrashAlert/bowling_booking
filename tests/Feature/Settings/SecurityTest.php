@@ -5,6 +5,21 @@ use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Fortify\Features;
 
+test('the security page shows the password form and no two-factor settings', function () {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->get(route('security.edit'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('settings/security')
+        ->has('passwordRules')
+        ->missing('canManageTwoFactor')
+        ->missing('twoFactorEnabled')
+        ->missing('requiresConfirmation'));
+});
+
 test('security page is displayed', function () {
     $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
 

@@ -22,6 +22,8 @@ export type WaitlistTicket = {
     // When a called party must have checked in by.
     checkInBy: string | null;
     sessionEndsAt: string | null;
+    // Whether a phone will be sent a notification when the party is called.
+    pushOn: boolean;
     // Null for a walk-in added by staff, who pays no deposit.
     deposit: {
         amountCents: number;

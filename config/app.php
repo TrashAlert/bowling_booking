@@ -56,6 +56,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Trusted Proxies
+    |--------------------------------------------------------------------------
+    |
+    | The addresses of the proxies the public pages come through, separated
+    | by commas, or "*" for any. Requests from them are believed when they
+    | say which customer they are passing on and that the customer is on
+    | HTTPS. Leave it empty when the app is reached directly.
+    |
+    */
+
+    'trusted_proxies' => env('TRUSTED_PROXIES'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
