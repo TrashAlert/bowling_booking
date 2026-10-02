@@ -1,5 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
-import { ArrowLeft } from 'lucide-react';
+import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { SessionLengthPicker } from '@/components/staff/session-length-picker';
@@ -26,7 +25,6 @@ import {
     formatTime,
     formatTimeOfDay,
 } from '@/lib/format';
-import { home } from '@/routes';
 import type { SessionRules } from '@/types';
 
 type Limits = {
@@ -296,46 +294,30 @@ export default function ReserveLane({
     session: SessionRules;
     limits: Limits;
 }) {
-    const { name } = usePage().props;
     const [reservation, setReservation] = useState<Reservation | null>(null);
 
     return (
         <>
             <Head title="Reserve a lane" />
 
-            <div className="flex min-h-screen flex-col bg-background text-foreground">
-                <header className="mx-auto flex w-full max-w-md items-center p-4 sm:p-6">
-                    <Link
-                        href={home()}
-                        className="flex items-center gap-2 truncate font-semibold tracking-tight"
-                    >
-                        <ArrowLeft aria-hidden className="size-4 shrink-0" />
-                        {name}
-                    </Link>
-                </header>
+            <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                This is a sample page. Booking online is not switched on yet, so
+                nothing you enter here is saved and no lane is kept for you.
+            </p>
 
-                <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4 sm:p-6">
-                    <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-                        This is a sample page. Booking online is not switched on
-                        yet, so nothing you enter here is saved and no lane is
-                        kept for you.
-                    </p>
-
-                    {reservation ? (
-                        <Reserved
-                            reservation={reservation}
-                            limits={limits}
-                            onAgain={() => setReservation(null)}
-                        />
-                    ) : (
-                        <ReserveForm
-                            session={session}
-                            limits={limits}
-                            onReserve={setReservation}
-                        />
-                    )}
-                </main>
-            </div>
+            {reservation ? (
+                <Reserved
+                    reservation={reservation}
+                    limits={limits}
+                    onAgain={() => setReservation(null)}
+                />
+            ) : (
+                <ReserveForm
+                    session={session}
+                    limits={limits}
+                    onReserve={setReservation}
+                />
+            )}
         </>
     );
 }

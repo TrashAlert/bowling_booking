@@ -39,6 +39,7 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'version' => config('bowling.version'),
+            'currencySymbol' => config('bowling.currency_symbol'),
             'auth' => [
                 'user' => $request->user(),
             ],

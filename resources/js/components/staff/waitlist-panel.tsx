@@ -1,4 +1,4 @@
-import { Form } from '@inertiajs/react';
+import { Form, usePage } from '@inertiajs/react';
 import WaitlistController from '@/actions/App/Http/Controllers/Staff/WaitlistController';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -6,11 +6,13 @@ import {
     formatCountdown,
     formatLanes,
     formatMinutes,
+    formatMoney,
     formatSessionLength,
 } from '@/lib/format';
 import type { WaitlistRow } from '@/types';
 
 function WaitlistEntry({ row, now }: { row: WaitlistRow; now: number }) {
+    const { currencySymbol } = usePage().props;
     const lanes =
         row.laneNumbers.length > 0 ? formatLanes(row.laneNumbers) : null;
 
@@ -28,6 +30,13 @@ function WaitlistEntry({ row, now }: { row: WaitlistRow; now: number }) {
                         {row.partySize === 1 ? 'person' : 'people'} ·{' '}
                         {formatSessionLength(row.minutes)}
                     </p>
+                    {row.depositCents !== null && (
+                        <p className="text-sm text-muted-foreground">
+                            Online ·{' '}
+                            {formatMoney(row.depositCents, currencySymbol)}{' '}
+                            deposit paid
+                        </p>
+                    )}
                 </div>
 
                 {row.status === 'called' ? (

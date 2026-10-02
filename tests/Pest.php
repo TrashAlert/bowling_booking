@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\Lane;
 use App\Models\WaitlistEntry;
 use App\Services\BookingService;
+use App\Services\WaitlistDeposits;
 use App\Services\WaitlistService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -95,4 +96,15 @@ function reserveLanes(Lane|array $lanes, CarbonImmutable $startsAt, int $minutes
 function joinWaitlist(int $minutes = 60, int $partySize = 4, string $name = 'Walk-in party'): WaitlistEntry
 {
     return app(WaitlistService::class)->joinAsNewCustomer($name, null, $minutes, $partySize);
+}
+
+/**
+ * Put a party in line the way one that joins online gets there: it asks to
+ * join, then pays its deposit.
+ */
+function joinWaitlistOnline(int $minutes = 60, int $partySize = 4, string $name = 'Online party'): WaitlistEntry
+{
+    $deposits = app(WaitlistDeposits::class);
+
+    return $deposits->confirmPayment($deposits->start($name, '0123456789', $minutes, $partySize));
 }

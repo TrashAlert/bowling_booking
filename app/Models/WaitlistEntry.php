@@ -6,6 +6,7 @@ use App\Enums\WaitlistStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class WaitlistEntry extends Model
@@ -50,6 +51,12 @@ class WaitlistEntry extends Model
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
+    }
+
+    // The deposit paid to join online. Empty for a walk-in added by staff.
+    public function deposit(): HasOne
+    {
+        return $this->hasOne(WaitlistDeposit::class);
     }
 
     // Everyone still in line, first come first served.

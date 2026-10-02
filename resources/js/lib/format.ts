@@ -91,6 +91,13 @@ export function formatLanes(numbers: number[]): string {
 }
 
 /**
+ * An amount of money kept in cents, e.g. "RM 10.00".
+ */
+export function formatMoney(cents: number, symbol: string): string {
+    return `${symbol} ${(cents / 100).toFixed(2)}`;
+}
+
+/**
  * A ticking countdown, e.g. "4:05". Never goes below "0:00".
  */
 export function formatCountdown(milliseconds: number): string {

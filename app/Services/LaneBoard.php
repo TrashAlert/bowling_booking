@@ -133,13 +133,14 @@ class LaneBoard
      *     calledAt: string|null,
      *     checkInBy: string|null,
      *     laneNumbers: list<int>,
+     *     depositCents: int|null,
      * }>
      */
     public function waitlist(): array
     {
         return WaitlistEntry::query()
             ->inLine()
-            ->with(['customer', 'booking.allocations.lane'])
+            ->with(['customer', 'booking.allocations.lane', 'deposit'])
             ->get()
             ->values()
             ->map(function (WaitlistEntry $entry, int $index) {
@@ -156,6 +157,8 @@ class LaneBoard
                     'calledAt' => $entry->called_at?->toIso8601String(),
                     'checkInBy' => $held->min('held_until')?->toIso8601String(),
                     'laneNumbers' => $held->pluck('lane.number')->sort()->values()->all(),
+                    // What a party that joined online paid, to take off its bill.
+                    'depositCents' => $entry->deposit?->amount_cents,
                 ];
             })
             ->all();

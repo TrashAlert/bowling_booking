@@ -255,9 +255,22 @@ test('the waitlist lists parties in line in order and never exposes their token'
             'calledAt' => null,
             'checkInBy' => null,
             'laneNumbers' => [],
+            'depositCents' => null,
         ])
         ->and($waitlist[1]['customerName'])->toBe('Second')
         ->and($waitlist[1]['position'])->toBe(2);
+});
+
+test('a party that joined online shows the deposit it paid', function () {
+    joinWaitlist(name: 'At the counter');
+    joinWaitlistOnline(name: 'Online');
+
+    $waitlist = app(LaneBoard::class)->waitlist();
+
+    expect(array_column($waitlist, 'depositCents', 'customerName'))->toBe([
+        'At the counter' => null,
+        'Online' => 1000,
+    ]);
 });
 
 test('a called party shows its lanes and its check-in deadline', function () {

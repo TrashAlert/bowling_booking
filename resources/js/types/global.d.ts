@@ -11,6 +11,8 @@ declare module '@inertiajs/core' {
         sharedPageProps: {
             name: string;
             version: string;
+            // The symbol shown in front of amounts of money, e.g. "RM".
+            currencySymbol: string;
             auth: Auth;
             sidebarOpen: boolean;
             [key: string]: unknown;

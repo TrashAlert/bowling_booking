@@ -6,7 +6,7 @@ return [
 
     // The version shown in the staff sidebar. Not read from .env: raise it
     // here with each change that should be tracked.
-    'version' => '0.5.3',
+    'version' => '0.6.0',
 
     // Sessions are booked in steps of this many minutes. One step is also the
     // shortest session.
@@ -44,6 +44,14 @@ return [
     // How long after the start time a reservation can arrive before it's a no-show
     // and its lanes go back to the waitlist.
     'no_show_grace_minutes' => (int) env('BOWLING_NO_SHOW_GRACE_MINUTES', 15),
+
+    // What a party pays to join the waitlist online, in cents. It counts
+    // toward the party's bill once it is seated. Walk-ins added by staff at
+    // the counter pay no deposit.
+    'waitlist_deposit_cents' => (int) env('BOWLING_WAITLIST_DEPOSIT_CENTS', 1000),
+
+    // The symbol shown in front of amounts of money.
+    'currency_symbol' => env('BOWLING_CURRENCY_SYMBOL', 'RM'),
 
     // How long a called walk-in party has to check in at the desk before
     // they're skipped and the lane goes to the next party.

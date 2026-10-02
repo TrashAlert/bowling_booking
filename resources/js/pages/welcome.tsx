@@ -13,15 +13,18 @@ import {
 import { dashboard, login, reserve } from '@/routes';
 import { join } from '@/routes/waitlist';
 
-// What customers will be able to do from this page. Neither is built yet:
-// each opens a sample page that saves nothing.
-const samples = [
+// What customers can do from this page. Joining the waitlist works, with a
+// stand-in for the deposit payment. Reserving opens a sample page that saves
+// nothing.
+const actions = [
     {
         icon: Users,
         title: 'Join the waitlist',
         description:
             'Walking in? Add your group to the line and we will call you when a lane is ready.',
         action: 'Join the waitlist',
+        badge: 'Trial',
+        note: 'A deposit is paid to join online.',
         href: join(),
     },
     {
@@ -30,6 +33,8 @@ const samples = [
         description:
             'Planning ahead? Pick a date and time and we will keep a lane for you.',
         action: 'Make a reservation',
+        badge: 'Sample',
+        note: 'For now, please ask our staff at the counter.',
         href: reserve(),
     },
 ];
@@ -66,7 +71,7 @@ export default function Welcome() {
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
-                        {samples.map((item) => (
+                        {actions.map((item) => (
                             <Card key={item.title}>
                                 <CardHeader>
                                     <item.icon
@@ -76,7 +81,7 @@ export default function Welcome() {
                                     <CardTitle className="flex items-center gap-2">
                                         {item.title}
                                         <Badge variant="secondary">
-                                            Sample
+                                            {item.badge}
                                         </Badge>
                                     </CardTitle>
                                     <CardDescription>
@@ -84,8 +89,7 @@ export default function Welcome() {
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="text-sm text-muted-foreground">
-                                    For now, please ask our staff at the
-                                    counter.
+                                    {item.note}
                                 </CardContent>
                                 <CardFooter>
                                     <Button className="w-full" asChild>

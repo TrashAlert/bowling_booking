@@ -1,12 +1,30 @@
 <?php
 
 use App\Http\Controllers\ReserveLaneController;
+use App\Http\Controllers\WaitlistDepositController;
+use App\Http\Controllers\WaitlistEntryController;
 use App\Http\Controllers\WaitlistJoinController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
 
-Route::get('waitlist/join', WaitlistJoinController::class)->name('waitlist.join');
+// Joining the waitlist online: the form, the deposit, then the party's own
+// page. The last two are reached by a secret token in the address.
+Route::get('waitlist/join', [WaitlistJoinController::class, 'create'])->name('waitlist.join');
+Route::post('waitlist/join', [WaitlistJoinController::class, 'store'])
+    ->middleware('throttle:10,1')
+    ->name('waitlist.store');
+
+Route::get('waitlist/deposit/{deposit:token}', [WaitlistDepositController::class, 'show'])->name('waitlist.deposit.show');
+Route::post('waitlist/deposit/{deposit:token}', [WaitlistDepositController::class, 'store'])->name('waitlist.deposit.store');
+
+Route::get('waitlist/{entry:token}', [WaitlistEntryController::class, 'show'])
+    ->where('entry', '[A-Za-z0-9]{40}')
+    ->name('waitlist.show');
+Route::delete('waitlist/{entry:token}', [WaitlistEntryController::class, 'destroy'])
+    ->where('entry', '[A-Za-z0-9]{40}')
+    ->name('waitlist.destroy');
+
 Route::get('reserve', ReserveLaneController::class)->name('reserve');
 
 Route::middleware(['auth', 'verified'])->group(function () {
