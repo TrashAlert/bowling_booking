@@ -2,6 +2,7 @@ import { Form, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import ReservationController from '@/actions/App/Http/Controllers/Staff/ReservationController';
 import InputError from '@/components/input-error';
+import PhoneInput from '@/components/phone-input';
 import { LanePicker } from '@/components/staff/lane-picker';
 import {
     defaultSessionLength,
@@ -172,10 +173,8 @@ export function ReservationFormDialog({
                                     <Label htmlFor="reservation-phone">
                                         Phone
                                     </Label>
-                                    <Input
+                                    <PhoneInput
                                         id="reservation-phone"
-                                        name="phone"
-                                        type="tel"
                                         defaultValue={reservation?.phone ?? ''}
                                         required
                                         autoComplete="off"

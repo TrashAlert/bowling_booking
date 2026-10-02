@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import PhoneInput from '@/components/phone-input';
 import { SessionLengthPicker } from '@/components/staff/session-length-picker';
 import { Button } from '@/components/ui/button';
 import {
@@ -114,12 +115,9 @@ function ReserveForm({
 
                         <div className="grid gap-2">
                             <Label htmlFor="reserve-phone">Phone</Label>
-                            <Input
+                            <PhoneInput
                                 id="reserve-phone"
-                                name="phone"
-                                type="tel"
                                 required
-                                maxLength={30}
                                 autoComplete="tel"
                             />
                         </div>

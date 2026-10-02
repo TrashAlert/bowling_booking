@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Staff;
 
 use App\Concerns\LaneSelectionRules;
+use App\Concerns\PhoneValidationRules;
 use App\Concerns\SessionValidationRules;
 use Carbon\CarbonImmutable;
 use Closure;
@@ -15,7 +16,7 @@ use Illuminate\Foundation\Http\FormRequest;
  */
 class ReservationRequest extends FormRequest
 {
-    use LaneSelectionRules, SessionValidationRules;
+    use LaneSelectionRules, PhoneValidationRules, SessionValidationRules;
 
     // A sanity limit, so a typo such as 1200 isn't saved as a party size.
     public const MAX_PARTY_SIZE = 200;
@@ -29,7 +30,7 @@ class ReservationRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:30'],
+            'phone' => $this->phoneRules(),
             'party_size' => ['required', 'integer', 'min:1', 'max:'.self::MAX_PARTY_SIZE],
             'starts_at' => $this->startsAtRules(),
             'minutes' => $this->sessionMinutesRules(),
@@ -64,6 +65,7 @@ class ReservationRequest extends FormRequest
                 'days' => config('bowling.reservation_max_days_ahead'),
             ]),
             ...$this->laneSelectionMessages(),
+            ...$this->phoneMessages(),
         ];
     }
 

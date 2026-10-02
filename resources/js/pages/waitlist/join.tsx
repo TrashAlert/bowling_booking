@@ -1,6 +1,7 @@
 import { Form, Head, usePage } from '@inertiajs/react';
 import WaitlistJoinController from '@/actions/App/Http/Controllers/WaitlistJoinController';
 import InputError from '@/components/input-error';
+import PhoneInput from '@/components/phone-input';
 import { SessionLengthPicker } from '@/components/staff/session-length-picker';
 import { Button } from '@/components/ui/button';
 import {
@@ -69,12 +70,9 @@ export default function WaitlistJoin({
                                         <Label htmlFor="waitlist-phone">
                                             Phone
                                         </Label>
-                                        <Input
+                                        <PhoneInput
                                             id="waitlist-phone"
-                                            name="phone"
-                                            type="tel"
                                             required
-                                            maxLength={30}
                                             autoComplete="tel"
                                         />
                                         <InputError message={errors.phone} />

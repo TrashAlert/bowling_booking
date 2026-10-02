@@ -2,13 +2,14 @@
 
 namespace App\Http\Requests\Staff;
 
+use App\Concerns\PhoneValidationRules;
 use App\Concerns\SessionValidationRules;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreWalkInRequest extends FormRequest
 {
-    use SessionValidationRules;
+    use PhoneValidationRules, SessionValidationRules;
 
     /**
      * Get the validation rules that apply to the request.
@@ -19,7 +20,7 @@ class StoreWalkInRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'phone' => $this->phoneRules(required: false),
             'party_size' => $this->partySizeRules(),
             'minutes' => $this->sessionMinutesRules(),
         ];
@@ -34,6 +35,7 @@ class StoreWalkInRequest extends FormRequest
     {
         return [
             'party_size.max' => __('A lane takes up to :max people. Add another walk-in for the rest of the group.'),
+            ...$this->phoneMessages(),
         ];
     }
 }

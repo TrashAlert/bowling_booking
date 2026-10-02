@@ -13,7 +13,7 @@ function joinForm(array $overrides = []): array
 {
     return [
         'name' => 'Farah Aziz',
-        'phone' => '012-345 6789',
+        'phone' => '0123456789',
         'party_size' => 5,
         'minutes' => 90,
         ...$overrides,
@@ -38,7 +38,7 @@ test('joining saves the request and sends the party to pay, without putting it i
     $response->assertRedirect(route('waitlist.deposit.show', ['deposit' => $deposit->token]));
     expect($deposit->only(['name', 'phone', 'party_size', 'minutes', 'amount_cents', 'paid_at']))->toBe([
         'name' => 'Farah Aziz',
-        'phone' => '012-345 6789',
+        'phone' => '0123456789',
         'party_size' => 5,
         'minutes' => 90,
         'amount_cents' => 1000,
@@ -58,6 +58,21 @@ test('the name, phone, party size and session length are required', function () 
     ]);
     $this->assertDatabaseCount('waitlist_deposits', 0);
 });
+
+test('a phone number with anything but digits is refused', function (string $phone) {
+    $response = $this->post(route('waitlist.store'), joinForm(['phone' => $phone]));
+
+    $response->assertSessionHasErrors([
+        'phone' => 'The phone number can only contain digits, with no spaces, letters or symbols.',
+    ]);
+    $this->assertDatabaseCount('waitlist_deposits', 0);
+})->with([
+    'letters' => '01234abcde',
+    'spaces' => '012 345 6789',
+    'dashes' => '012-345-6789',
+    'a plus sign' => '+60123456789',
+    'brackets' => '(012)3456789',
+]);
 
 test('a group bigger than one lane is told to join again for the rest', function () {
     $response = $this->post(route('waitlist.store'), joinForm(['party_size' => 7]));

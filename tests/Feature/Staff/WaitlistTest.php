@@ -41,6 +41,20 @@ describe('adding a walk-in', function () {
         $this->assertDatabaseHas('customers', ['name' => 'Farah', 'phone' => null]);
     });
 
+    test('a phone number with anything but digits is refused', function () {
+        $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.store'), [
+            'name' => 'Farah',
+            'phone' => '012-345 6789',
+            'party_size' => 2,
+            'minutes' => 60,
+        ]);
+
+        $response->assertSessionHasErrors([
+            'phone' => 'The phone number can only contain digits, with no spaces, letters or symbols.',
+        ]);
+        $this->assertDatabaseCount('waitlist_entries', 0);
+    });
+
     test('the name, party size and session length are required', function () {
         $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.store'), []);
 

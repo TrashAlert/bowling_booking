@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Concerns\PhoneValidationRules;
 use App\Concerns\SessionValidationRules;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -12,7 +13,7 @@ use Illuminate\Foundation\Http\FormRequest;
  */
 class JoinWaitlistRequest extends FormRequest
 {
-    use SessionValidationRules;
+    use PhoneValidationRules, SessionValidationRules;
 
     /**
      * Get the validation rules that apply to the request.
@@ -23,7 +24,7 @@ class JoinWaitlistRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:30'],
+            'phone' => $this->phoneRules(),
             'party_size' => $this->partySizeRules(),
             'minutes' => $this->sessionMinutesRules(),
         ];
@@ -38,6 +39,7 @@ class JoinWaitlistRequest extends FormRequest
     {
         return [
             'party_size.max' => __('A lane takes up to :max people. Join again for the rest of your group.'),
+            ...$this->phoneMessages(),
         ];
     }
 }

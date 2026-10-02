@@ -181,6 +181,7 @@ describe('making a reservation', function () {
         $this->assertDatabaseCount('bookings', 0);
         $this->assertDatabaseCount('lane_allocations', 0);
     })->with([
+        'a phone number with a symbol' => [['phone' => '012-3456789'], 'phone', 'The phone number can only contain digits, with no spaces, letters or symbols.'],
         'start in the past' => [['starts_at' => '2026-10-01T09:30:00.000Z'], 'starts_at', "The start time can't be in the past."],
         'start too far ahead' => [['starts_at' => '2026-12-31T12:00:00.000Z'], 'starts_at', 'Reservations can be made up to 90 days ahead.'],
         'start off the half hour' => [['starts_at' => '2026-10-01T12:10:00.000Z'], 'starts_at', 'The start time must be on the hour or half hour.'],

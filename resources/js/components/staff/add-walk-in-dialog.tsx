@@ -2,6 +2,7 @@ import { Form } from '@inertiajs/react';
 import { useState } from 'react';
 import WaitlistController from '@/actions/App/Http/Controllers/Staff/WaitlistController';
 import InputError from '@/components/input-error';
+import PhoneInput from '@/components/phone-input';
 import { SessionLengthPicker } from '@/components/staff/session-length-picker';
 import { Button } from '@/components/ui/button';
 import {
@@ -58,10 +59,8 @@ export function AddWalkInDialog({ session }: { session: SessionRules }) {
                                     <Label htmlFor="walk-in-phone">
                                         Phone (optional)
                                     </Label>
-                                    <Input
+                                    <PhoneInput
                                         id="walk-in-phone"
-                                        name="phone"
-                                        type="tel"
                                         autoComplete="off"
                                     />
                                     <InputError message={errors.phone} />
