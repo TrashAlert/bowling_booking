@@ -74,12 +74,12 @@ class UserController extends Controller
     }
 
     /**
-     * Remove a user. Admins remove their own account from their profile page,
-     * so there is always an admin left here.
+     * Remove a user. Nobody can remove their own account, so there is always
+     * an admin left.
      */
     public function destroy(Request $request, User $user): RedirectResponse
     {
-        abort_if($user->is($request->user()), 403, __('You cannot remove your own account here.'));
+        abort_if($user->is($request->user()), 403, __('You cannot remove your own account.'));
 
         $user->delete();
 
