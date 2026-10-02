@@ -43,14 +43,24 @@ const actions = [
     },
 ];
 
+type LaneCount = {
+    // Lanes free right now, after the ones the waitlist is about to take.
+    free: number;
+    total: number;
+    // Groups in the waitlist, whether still waiting or already called.
+    waiting: number;
+};
+
 /**
- * How many lanes are free right now, so a customer can choose between
- * walking in and booking ahead. Shown once the venue has lanes.
+ * How many lanes are left for someone arriving now, so a customer can choose
+ * between walking in and booking ahead. Shown once the venue has lanes.
  */
-function LanesFree({ free, total }: { free: number; total: number }) {
+function LanesFree({ free, total, waiting }: LaneCount) {
     if (total === 0) {
         return null;
     }
+
+    const groups = `${waiting} ${waiting === 1 ? 'group' : 'groups'}`;
 
     return (
         <div className="mx-auto mt-6 w-fit rounded-xl border px-5 py-3">
@@ -64,8 +74,15 @@ function LanesFree({ free, total }: { free: number; total: number }) {
                 />
                 {free > 0
                     ? `${free} of ${total} ${total === 1 ? 'lane' : 'lanes'} free right now`
-                    : 'Every lane is in use right now'}
+                    : 'No lane is free right now'}
             </p>
+            {waiting > 0 && (
+                <p className="text-sm">
+                    {free > 0
+                        ? `That is after the ${groups} already in the waitlist.`
+                        : `${groups} in the waitlist.`}
+                </p>
+            )}
             <p className="text-sm text-muted-foreground">
                 {free > 0
                     ? 'Walk in and play, or reserve a lane for later.'
@@ -75,11 +92,7 @@ function LanesFree({ free, total }: { free: number; total: number }) {
     );
 }
 
-export default function Welcome({
-    lanes,
-}: {
-    lanes: { free: number; total: number };
-}) {
+export default function Welcome({ lanes }: { lanes: LaneCount }) {
     const { auth, name } = usePage().props;
 
     usePoll(POLL_INTERVAL_MS, { only: ['lanes'] });
@@ -110,7 +123,7 @@ export default function Welcome({
                         <p className="mt-3 text-lg text-muted-foreground">
                             Come and bowl. Walk in, or book a lane ahead.
                         </p>
-                        <LanesFree free={lanes.free} total={lanes.total} />
+                        <LanesFree {...lanes} />
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">

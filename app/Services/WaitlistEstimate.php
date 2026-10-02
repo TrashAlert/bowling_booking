@@ -67,6 +67,19 @@ class WaitlistEstimate
     }
 
     /**
+     * How many lanes are free right now once every waiting party has been
+     * given the lane it is about to be called to. A lane counts while it is
+     * open and nothing is on it or held for anyone.
+     */
+    public function lanesFreeNow(): int
+    {
+        $now = CarbonImmutable::now();
+        $busy = $this->seatInTurn($this->busyTimes($now), $this->waiting(), $now);
+
+        return count($this->freeLanes($busy, $now->getTimestamp(), $now->addMinute()->getTimestamp()));
+    }
+
+    /**
      * The parties waiting to be called, first come first served.
      *
      * @return Collection<int, WaitlistEntry>
@@ -159,8 +172,7 @@ class WaitlistEstimate
         foreach ($moments as $start) {
             $end = $start + $minutes * 60;
 
-            $free = array_keys(array_filter($busy, fn (array $periods) => collect($periods)
-                ->doesntContain(fn (array $period) => $period[0] < $end && $period[1] > $start)));
+            $free = $this->freeLanes($busy, $start, $end);
 
             if (count($free) >= $lanesNeeded) {
                 return ['start' => $start, 'lanes' => array_slice($free, 0, $lanesNeeded)];
@@ -168,6 +180,19 @@ class WaitlistEstimate
         }
 
         return null;
+    }
+
+    /**
+     * The ids of the lanes with nothing on them from $start to $end, given
+     * as Unix times, lowest lane number first.
+     *
+     * @param  array<int, list<array{int, int}>>  $busy
+     * @return list<int>
+     */
+    private function freeLanes(array $busy, int $start, int $end): array
+    {
+        return array_keys(array_filter($busy, fn (array $periods) => collect($periods)
+            ->doesntContain(fn (array $period) => $period[0] < $end && $period[1] > $start)));
     }
 
     /**

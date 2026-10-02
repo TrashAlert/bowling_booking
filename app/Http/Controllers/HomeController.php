@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\LaneAvailability;
+use App\Enums\WaitlistStatus;
+use App\Models\WaitlistEntry;
 use App\Services\LaneInventory;
+use App\Services\WaitlistEstimate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -15,16 +17,17 @@ class HomeController extends Controller
      *
      * A lane counts as free when it is open and nothing is on it: no session,
      * no hold for a called party, no closure, and not the closed hour before
-     * a reservation.
+     * a reservation. The lanes that parties already in the waitlist are about
+     * to be called to are taken off, so the number is what is left for
+     * someone arriving now.
      */
-    public function __invoke(LaneAvailability $availability, LaneInventory $inventory): Response
+    public function __invoke(WaitlistEstimate $estimate, LaneInventory $inventory): Response
     {
-        $now = now();
-
         return Inertia::render('welcome', [
             'lanes' => [
-                'free' => $availability->freeLaneCount($now, $now->addMinute()),
+                'free' => $estimate->lanesFreeNow(),
                 'total' => $inventory->count(),
+                'waiting' => WaitlistEntry::query()->whereIn('status', WaitlistStatus::inLine())->count(),
             ],
         ]);
     }
