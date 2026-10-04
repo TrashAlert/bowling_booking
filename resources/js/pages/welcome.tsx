@@ -13,6 +13,8 @@ import {
 import { cn } from '@/lib/utils';
 import { dashboard, login, reserve } from '@/routes';
 import { join } from '@/routes/waitlist';
+import { formatTime, formatWhen } from '@/lib/format';
+import type { OpeningStatus } from '@/types';
 
 // How often the page asks again how many lanes are free.
 const POLL_INTERVAL_MS = 30_000;
@@ -55,7 +57,31 @@ type LaneCount = {
  * How many lanes are left for someone arriving now, so a customer can choose
  * between walking in and booking ahead. Shown once the venue has lanes.
  */
-function LanesFree({ free, total, waiting }: LaneCount) {
+function LanesFree({
+    free,
+    total,
+    waiting,
+    opening,
+}: LaneCount & { opening: OpeningStatus }) {
+    if (!opening.isOpen) {
+        return (
+            <div className="mx-auto mt-6 w-fit rounded-xl border px-5 py-3">
+                <p className="flex items-center justify-center gap-2 font-medium">
+                    <span
+                        aria-hidden
+                        className="size-2.5 rounded-full bg-muted-foreground"
+                    />
+                    We are closed right now
+                </p>
+                <p className="text-sm text-muted-foreground">
+                    {opening.opensAt
+                        ? `We open again ${formatWhen(opening.opensAt)}.`
+                        : 'Please check back later.'}
+                </p>
+            </div>
+        );
+    }
+
     if (total === 0) {
         return null;
     }
@@ -88,14 +114,25 @@ function LanesFree({ free, total, waiting }: LaneCount) {
                     ? 'Walk in and play, or reserve a lane for later.'
                     : 'Join the waitlist, or reserve a lane for later.'}
             </p>
+            {opening.closesAt && (
+                <p className="text-sm text-muted-foreground">
+                    Open until {formatTime(opening.closesAt)}.
+                </p>
+            )}
         </div>
     );
 }
 
-export default function Welcome({ lanes }: { lanes: LaneCount }) {
+export default function Welcome({
+    lanes,
+    opening,
+}: {
+    lanes: LaneCount;
+    opening: OpeningStatus;
+}) {
     const { auth, name } = usePage().props;
 
-    usePoll(POLL_INTERVAL_MS, { only: ['lanes'] });
+    usePoll(POLL_INTERVAL_MS, { only: ['lanes', 'opening'] });
 
     return (
         <>
@@ -123,7 +160,7 @@ export default function Welcome({ lanes }: { lanes: LaneCount }) {
                         <p className="mt-3 text-lg text-muted-foreground">
                             Come and bowl. Walk in, or book a lane ahead.
                         </p>
-                        <LanesFree {...lanes} />
+                        <LanesFree {...lanes} opening={opening} />
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">

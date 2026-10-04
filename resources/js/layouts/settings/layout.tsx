@@ -7,6 +7,7 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { cn, toUrl } from '@/lib/utils';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit as editLanes } from '@/routes/lanes';
+import { edit as editOpeningHours } from '@/routes/opening-hours';
 import { edit } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
 import { index as users } from '@/routes/users';
@@ -34,6 +35,11 @@ const adminNavItems: NavItem[] = [
     {
         title: 'Lanes',
         href: editLanes(),
+        icon: null,
+    },
+    {
+        title: 'Opening hours',
+        href: editOpeningHours(),
         icon: null,
     },
     {

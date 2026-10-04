@@ -22,6 +22,16 @@ test('the front page tells anyone how many lanes are free right now', function (
         ->where('lanes', ['free' => 1, 'total' => 4, 'waiting' => 0]));
 });
 
+test('the front page says whether the venue is open and when that changes', function () {
+    openDaily('10:00', '23:00');
+    $this->travelTo(venueTime('2026-10-05 23:30'));
+
+    $response = $this->get(route('home'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('opening', ['isOpen' => false, 'opensAt' => '2026-10-06T02:00:00+00:00', 'closesAt' => null]));
+});
+
 test('a lane that has been removed is not counted', function () {
     Lane::factory()->count(3)->create()->first()->delete();
 

@@ -7,6 +7,7 @@ use App\Models\Lane;
 use App\Models\WaitlistDeposit;
 use App\Models\WaitlistEntry;
 use App\Services\BookingService;
+use App\Services\OpeningHours;
 use App\Services\WaitlistDeposits;
 use App\Services\WaitlistService;
 use Carbon\CarbonImmutable;
@@ -111,4 +112,29 @@ function joinWaitlistOnline(int $minutes = 60, int $partySize = 4, string $name 
         'minutes' => $minutes,
         'party_size' => $partySize,
     ]));
+}
+
+/**
+ * Set the venue's opening hours: the same every day, except the days given
+ * (0 is Sunday), where null means closed.
+ *
+ * @param  array<int, array{opens: string, closes: string}|null>  $except
+ */
+function openDaily(string $opens = '10:00', string $closes = '23:00', array $except = []): void
+{
+    $days = [];
+
+    foreach (range(0, 6) as $weekday) {
+        $days[$weekday] = array_key_exists($weekday, $except) ? $except[$weekday] : ['opens' => $opens, 'closes' => $closes];
+    }
+
+    app(OpeningHours::class)->save($days);
+}
+
+/**
+ * A moment given as a clock time in the venue's time zone.
+ */
+function venueTime(string $time): CarbonImmutable
+{
+    return CarbonImmutable::parse($time, config('bowling.timezone'));
 }

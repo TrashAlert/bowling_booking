@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InvalidStateException;
 use App\Models\WaitlistDeposit;
 use App\Services\WaitlistDeposits;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -35,9 +37,16 @@ class WaitlistDepositController extends Controller
      *
      * This is a stand-in until a payment provider is connected: no money is
      * taken. The provider's confirmation will call the same service method.
+     * A party that comes back to pay after closing time is turned away.
      */
     public function store(WaitlistDeposit $deposit, WaitlistDeposits $deposits): RedirectResponse
     {
+        try {
+            $deposits->ensureOpen();
+        } catch (InvalidStateException $exception) {
+            throw ValidationException::withMessages(['closed' => $exception->getMessage()]);
+        }
+
         $entry = $deposits->confirmPayment($deposit);
 
         return to_route('waitlist.show', ['entry' => $entry->token]);

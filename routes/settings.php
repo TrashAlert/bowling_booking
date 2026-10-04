@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Settings\LaneController;
+use App\Http\Controllers\Settings\OpeningHoursController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use App\Http\Controllers\Settings\UserController;
@@ -29,6 +30,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::get('settings/lanes', [LaneController::class, 'edit'])->name('lanes.edit');
     Route::put('settings/lanes', [LaneController::class, 'update'])->name('lanes.update');
+
+    Route::get('settings/opening-hours', [OpeningHoursController::class, 'edit'])->name('opening-hours.edit');
+    Route::put('settings/opening-hours', [OpeningHoursController::class, 'update'])->name('opening-hours.update');
 
     Route::get('settings/users', [UserController::class, 'index'])->name('users.index');
     Route::post('settings/users', [UserController::class, 'store'])->name('users.store');

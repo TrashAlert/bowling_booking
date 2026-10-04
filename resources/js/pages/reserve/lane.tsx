@@ -2,7 +2,10 @@ import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import PhoneInput from '@/components/phone-input';
-import { SessionLengthPicker } from '@/components/staff/session-length-picker';
+import {
+    defaultSessionLength,
+    SessionLengthPicker,
+} from '@/components/staff/session-length-picker';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -26,7 +29,8 @@ import {
     formatTime,
     formatTimeOfDay,
 } from '@/lib/format';
-import type { SessionRules } from '@/types';
+import { fitsOpeningHours, hoursOn } from '@/lib/opening-hours';
+import type { DayHours, SessionRules } from '@/types';
 
 type Limits = {
     maxPartySize: number;
@@ -50,10 +54,12 @@ type Reservation = {
 function ReserveForm({
     session,
     limits,
+    openingHours,
     onReserve,
 }: {
     session: SessionRules;
     limits: Limits;
+    openingHours: DayHours[] | null;
     onReserve: (reservation: Reservation) => void;
 }) {
     const [opened] = useState(() => new Date());
@@ -63,9 +69,17 @@ function ReserveForm({
         nextStartTime(opened, session.stepMinutes),
     );
     const [partySize, setPartySize] = useState('2');
+    const [minutes, setMinutes] = useState(() => defaultSessionLength(session));
 
     const startsAt = localToIso(start.date, start.time);
     const isPast = startsAt !== null && Date.parse(startsAt) < opened.getTime();
+    // Whether a session from this time would be wholly within opening hours.
+    const fits = (time: string) =>
+        openingHours === null ||
+        fitsOpeningHours(openingHours, start.date, time, minutes);
+    const isClosed = !fits(start.time);
+    // Whether any start time on the chosen day works for this length.
+    const dayHasTimes = startTimes(session.stepMinutes).some(fits);
     const lanes = Math.max(
         1,
         Math.ceil(Number(partySize) / session.maxPlayersPerLane),
@@ -74,7 +88,7 @@ function ReserveForm({
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
-        if (startsAt === null || isPast) {
+        if (startsAt === null || isPast || isClosed) {
             return;
         }
 
@@ -85,7 +99,7 @@ function ReserveForm({
             name: typeof name === 'string' ? name.trim() : '',
             date: start.date,
             startsAt,
-            minutes: Number(form.get('minutes')),
+            minutes,
             partySize: Number(partySize),
             lanes,
         });
@@ -157,13 +171,29 @@ function ReserveForm({
                                 className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-base shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
                             >
                                 {startTimes(session.stepMinutes).map((time) => (
-                                    <option key={time} value={time}>
+                                    <option
+                                        key={time}
+                                        value={time}
+                                        disabled={!fits(time)}
+                                    >
                                         {formatTimeOfDay(time)}
                                     </option>
                                 ))}
                             </select>
                         </div>
                     </div>
+                    {openingHours !== null && (
+                        <p className="-mt-3 text-xs text-muted-foreground">
+                            {hoursOn(openingHours, start.date)} on this day.
+                        </p>
+                    )}
+                    {!isPast && isClosed && (
+                        <p className="-mt-3 text-sm text-destructive-foreground">
+                            {dayHasTimes
+                                ? 'We are not open for the whole of that session. Pick another time or a shorter session.'
+                                : 'There is no time on this day for a session that long. Pick another day.'}
+                        </p>
+                    )}
                     {isPast && (
                         <p className="-mt-3 text-sm text-destructive-foreground">
                             That time has already passed. Pick a later one.
@@ -198,10 +228,18 @@ function ReserveForm({
                         <legend className="mb-2 text-sm leading-none font-medium">
                             How long do you want to play?
                         </legend>
-                        <SessionLengthPicker session={session} />
+                        <SessionLengthPicker
+                            session={session}
+                            value={minutes}
+                            onChange={setMinutes}
+                        />
                     </fieldset>
 
-                    <Button type="submit" className="w-full" disabled={isPast}>
+                    <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={isPast || isClosed}
+                    >
                         Make a reservation
                     </Button>
                 </form>
@@ -288,9 +326,12 @@ function Reserved({
 export default function ReserveLane({
     session,
     limits,
+    openingHours,
 }: {
     session: SessionRules;
     limits: Limits;
+    // Reservations must fall within these; null while none are set.
+    openingHours: DayHours[] | null;
 }) {
     const [reservation, setReservation] = useState<Reservation | null>(null);
 
@@ -313,6 +354,7 @@ export default function ReserveLane({
                 <ReserveForm
                     session={session}
                     limits={limits}
+                    openingHours={openingHours}
                     onReserve={setReservation}
                 />
             )}

@@ -75,6 +75,37 @@ test('joining while a lane is free puts the party in line with no deposit to pay
         ->and($entry->deposit->amount_cents)->toBe(0);
 });
 
+test('while the venue is closed the page says so and when it opens', function () {
+    openDaily('10:00', '23:00');
+    $this->travelTo(venueTime('2026-10-05 23:30'));
+
+    $response = $this->get(route('waitlist.join'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('opening', ['isOpen' => false, 'opensAt' => '2026-10-06T02:00:00+00:00', 'closesAt' => null]));
+});
+
+test('no one can join the waitlist while the venue is closed', function () {
+    openDaily('10:00', '23:00');
+    $this->travelTo(venueTime('2026-10-05 23:30'));
+
+    $response = $this->post(route('waitlist.store'), joinForm());
+
+    $response->assertSessionHasErrors(['closed' => 'We are closed right now. We open again tomorrow at 10:00 AM.']);
+    $this->assertDatabaseCount('waitlist_deposits', 0);
+    $this->assertDatabaseCount('waitlist_entries', 0);
+});
+
+test('a party can join during opening hours', function () {
+    openDaily('10:00', '23:00');
+    $this->travelTo(venueTime('2026-10-05 22:30'));
+
+    $response = $this->post(route('waitlist.store'), joinForm());
+
+    $response->assertSessionHasNoErrors();
+    $this->assertDatabaseCount('waitlist_deposits', 1);
+});
+
 test('the name, phone, party size and session length are required', function () {
     $response = $this->post(route('waitlist.store'), []);
 

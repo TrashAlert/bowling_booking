@@ -91,6 +91,23 @@ export function formatLanes(numbers: number[]): string {
 }
 
 /**
+ * When something happens, from the viewer's point of view: "today at
+ * 10:00 AM", "tomorrow at 10:00 AM" or "on Monday at 10:00 AM".
+ */
+export function formatWhen(iso: string, now: Date = new Date()): string {
+    const moment = new Date(iso);
+    const days = Math.round(
+        (new Date(moment).setHours(0, 0, 0, 0) -
+            new Date(now).setHours(0, 0, 0, 0)) /
+            86_400_000,
+    );
+    const day =
+        days === 0 ? 'today' : days === 1 ? 'tomorrow' : `on ${formatDay(iso)}`;
+
+    return `${day} at ${formatTime(iso)}`;
+}
+
+/**
  * A wait as a customer is told it, rounded up to five minutes so it doesn't
  * promise more than an estimate can, e.g. "about 25 min".
  */

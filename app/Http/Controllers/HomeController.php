@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\WaitlistStatus;
 use App\Models\WaitlistEntry;
 use App\Services\LaneInventory;
+use App\Services\OpeningHours;
 use App\Services\WaitlistEstimate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -21,7 +22,7 @@ class HomeController extends Controller
      * to be called to are taken off, so the number is what is left for
      * someone arriving now.
      */
-    public function __invoke(WaitlistEstimate $estimate, LaneInventory $inventory): Response
+    public function __invoke(WaitlistEstimate $estimate, LaneInventory $inventory, OpeningHours $hours): Response
     {
         return Inertia::render('welcome', [
             'lanes' => [
@@ -29,6 +30,7 @@ class HomeController extends Controller
                 'total' => $inventory->count(),
                 'waiting' => WaitlistEntry::query()->whereIn('status', WaitlistStatus::inLine())->count(),
             ],
+            'opening' => $hours->status(),
         ]);
     }
 }

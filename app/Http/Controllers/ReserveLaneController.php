@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Staff\ReservationRequest;
 use App\Services\LaneBoard;
+use App\Services\OpeningHours;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -13,7 +14,7 @@ class ReserveLaneController extends Controller
      * Show the page where a customer will reserve lanes for a date and time.
      * It is a sample for now: the page saves nothing.
      */
-    public function __invoke(LaneBoard $board): Response
+    public function __invoke(LaneBoard $board, OpeningHours $hours): Response
     {
         return Inertia::render('reserve/lane', [
             'session' => $board->sessionRules(),
@@ -23,6 +24,9 @@ class ReserveLaneController extends Controller
                 'checkInOpensMinutes' => config('bowling.check_in_opens_minutes'),
                 'noShowGraceMinutes' => config('bowling.no_show_grace_minutes'),
             ],
+            // A reservation must start and end within these. Null while no
+            // hours are set, when any time can be picked.
+            'openingHours' => $hours->isSet() ? $hours->week() : null,
         ]);
     }
 }

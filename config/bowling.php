@@ -6,7 +6,10 @@ return [
 
     // The version shown in the staff sidebar. Not read from .env: raise it
     // here with each change that should be tracked.
-    'version' => '0.6.3a',
+    'version' => '0.7.1',
+
+    // The venue's time zone. Opening hours are clock times in this zone.
+    'timezone' => env('BOWLING_TIMEZONE', 'Asia/Kuala_Lumpur'),
 
     // Sessions are booked in steps of this many minutes. One step is also the
     // shortest session.

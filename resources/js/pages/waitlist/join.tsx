@@ -17,8 +17,8 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { formatMoney, formatWait } from '@/lib/format';
-import type { SessionRules } from '@/types';
+import { formatMoney, formatWait, formatWhen } from '@/lib/format';
+import type { OpeningStatus, SessionRules } from '@/types';
 
 // How often the page asks again how long the wait is.
 const POLL_INTERVAL_MS = 30_000;
@@ -53,6 +53,30 @@ function WaitEstimate({ minutes }: { minutes: number | null | undefined }) {
 }
 
 /**
+ * What the page shows instead of the form while the venue is closed.
+ */
+function Closed({ opensAt }: { opensAt: string | null }) {
+    return (
+        <>
+            <Head title="Join the waitlist" />
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-xl">
+                        We are closed right now
+                    </CardTitle>
+                    <CardDescription>
+                        {opensAt
+                            ? `We open again ${formatWhen(opensAt)}. You can join the waitlist then.`
+                            : 'Please check back later.'}
+                    </CardDescription>
+                </CardHeader>
+            </Card>
+        </>
+    );
+}
+
+/**
  * Where a party adds itself to the waitlist. While a lane is free for it,
  * sending the form puts it in line at once with nothing to pay. Otherwise it
  * pays a deposit on the next page first. The server decides which as the form
@@ -63,12 +87,15 @@ export default function WaitlistJoin({
     checkInMinutes,
     depositCents,
     waitMinutes,
+    opening,
 }: {
     session: SessionRules;
     checkInMinutes: number;
     depositCents: number;
     // The likely wait in minutes for each session length on offer.
     waitMinutes: Record<string, number | null>;
+    // Joining is only possible while the venue is open.
+    opening: OpeningStatus;
 }) {
     const { currencySymbol } = usePage().props;
     const deposit = formatMoney(depositCents, currencySymbol);
@@ -76,7 +103,11 @@ export default function WaitlistJoin({
     // No deposit is asked for while a lane is free for the session picked.
     const laneIsFree = waitMinutes[minutes] === 0;
 
-    usePoll(POLL_INTERVAL_MS, { only: ['waitMinutes'] });
+    usePoll(POLL_INTERVAL_MS, { only: ['waitMinutes', 'opening'] });
+
+    if (!opening.isOpen) {
+        return <Closed opensAt={opening.opensAt} />;
+    }
 
     return (
         <>
@@ -198,6 +229,8 @@ export default function WaitlistJoin({
                                         </ul>
                                     </div>
                                 )}
+
+                                <InputError message={errors.closed} />
 
                                 <Button
                                     type="submit"

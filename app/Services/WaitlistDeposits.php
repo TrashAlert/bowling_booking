@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\InvalidStateException;
 use App\Models\WaitlistDeposit;
 use App\Models\WaitlistEntry;
 use Illuminate\Support\Facades\DB;
@@ -9,23 +10,41 @@ use Illuminate\Support\Facades\DB;
 /**
  * Joining the waitlist online. While a lane is free for the party no deposit
  * is asked for and it goes straight into the line. Otherwise it pays a
- * deposit first and is only put in line once that is paid. Walk-ins added by
- * staff at the counter don't come through here and pay no deposit.
+ * deposit first and is only put in line once that is paid. It can only be
+ * done while the venue is open. Walk-ins added by staff at the counter don't
+ * come through here and pay no deposit.
  */
 class WaitlistDeposits
 {
     public function __construct(
         private WaitlistService $waitlist,
         private WaitlistEstimate $estimate,
+        private OpeningHours $hours,
     ) {}
+
+    /**
+     * Turn a party away while the venue is closed, saying when it opens.
+     *
+     * @throws InvalidStateException when the venue is closed now.
+     */
+    public function ensureOpen(): void
+    {
+        if (! $this->hours->isOpenAt(now())) {
+            throw new InvalidStateException($this->hours->closedNotice(now()));
+        }
+    }
 
     /**
      * Note what a party wants and how much it has to pay. With nothing to
      * pay it is put in line at once; otherwise it isn't in line yet and
      * takes no place in it.
+     *
+     * @throws InvalidStateException when the venue is closed now.
      */
     public function start(string $name, string $phone, int $minutes, int $partySize): WaitlistDeposit
     {
+        $this->ensureOpen();
+
         $deposit = WaitlistDeposit::create([
             'name' => $name,
             'phone' => $phone,

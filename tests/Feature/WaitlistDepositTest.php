@@ -32,6 +32,19 @@ test('paying puts the party in line and sends it to its own page', function () {
         ->and($deposit->refresh()->isPaid())->toBeTrue();
 });
 
+test('a deposit cannot be paid once the venue has closed', function () {
+    openDaily('10:00', '23:00');
+    $this->travelTo(venueTime('2026-10-05 22:55'));
+    $deposit = app(WaitlistDeposits::class)->start('Farah', '0123456789', 90, 5);
+    $this->travelTo(venueTime('2026-10-05 23:05'));
+
+    $response = $this->post(route('waitlist.deposit.store', ['deposit' => $deposit->token]));
+
+    $response->assertSessionHasErrors(['closed' => 'We are closed right now. We open again tomorrow at 10:00 AM.']);
+    expect($deposit->refresh()->isPaid())->toBeFalse();
+    $this->assertDatabaseCount('waitlist_entries', 0);
+});
+
 test('a deposit that is already paid leads straight to the place in line', function () {
     $entry = joinWaitlistOnline();
     $deposit = WaitlistDeposit::query()->sole();

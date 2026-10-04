@@ -1,4 +1,5 @@
 import { Form, Head, usePage } from '@inertiajs/react';
+import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -69,15 +70,22 @@ export default function WaitlistDeposit({
                         ))}
                     </dl>
 
-                    <Form action={url.split('?')[0]} method="post">
-                        {({ processing }) => (
-                            <Button
-                                type="submit"
-                                className="w-full"
-                                disabled={processing}
-                            >
-                                Pay {amount}
-                            </Button>
+                    <Form
+                        action={url.split('?')[0]}
+                        method="post"
+                        className="space-y-3"
+                    >
+                        {({ processing, errors }) => (
+                            <>
+                                <InputError message={errors.closed} />
+                                <Button
+                                    type="submit"
+                                    className="w-full"
+                                    disabled={processing}
+                                >
+                                    Pay {amount}
+                                </Button>
+                            </>
                         )}
                     </Form>
                 </CardContent>
