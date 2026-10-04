@@ -43,6 +43,24 @@ test('a night that runs past midnight stays open into the next morning', functio
     'Saturday morning' => ['2026-10-10 11:00', false],
 ]);
 
+test('a session must fall wholly inside one opening', function (string $start, string $end, bool $covered) {
+    // Friday runs until 1am.
+    openDaily('10:00', '23:00', except: [5 => ['opens' => '10:00', 'closes' => '01:00']]);
+
+    expect(app(OpeningHours::class)->coversSession(venueTime($start), venueTime($end)))->toBe($covered);
+})->with([
+    'inside the day' => ['2026-10-05 19:00', '2026-10-05 20:30', true],
+    'ending exactly at closing' => ['2026-10-05 22:00', '2026-10-05 23:00', true],
+    'running past closing' => ['2026-10-05 22:30', '2026-10-05 23:30', false],
+    'starting before opening' => ['2026-10-05 09:30', '2026-10-05 10:30', false],
+    'into a late night past midnight' => ['2026-10-09 23:30', '2026-10-10 00:30', true],
+    'running past a late close' => ['2026-10-10 00:30', '2026-10-10 01:30', false],
+]);
+
+test('any session is fine while no hours are set', function () {
+    expect(app(OpeningHours::class)->coversSession(venueTime('2026-10-05 03:00'), venueTime('2026-10-05 04:00')))->toBeTrue();
+});
+
 test('a day marked closed is closed all day', function () {
     openDaily('10:00', '23:00', except: [0 => null]);
 

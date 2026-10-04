@@ -9,6 +9,8 @@ use App\Exceptions\NoLaneAvailableException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Staff\ReservationRequest;
 use App\Models\Booking;
+use App\Models\BookingRequest;
+use App\Services\BookingRequests;
 use App\Services\BookingService;
 use App\Services\LaneAvailability;
 use App\Services\LaneBoard;
@@ -68,20 +70,37 @@ class ReservationController extends Controller
     /**
      * Make a reservation.
      */
-    public function store(ReservationRequest $request, BookingService $bookings): RedirectResponse
+    public function store(ReservationRequest $request, BookingService $bookings, BookingRequests $requests): RedirectResponse
     {
         try {
-            $booking = $bookings->reserveForNewCustomer(
-                $request->string('name')->toString(),
-                $request->string('phone')->toString(),
-                $request->lanes(),
-                $request->integer('minutes'),
-                $request->integer('party_size'),
-                $request->startsAt(),
-                $request->input('notes'),
-            );
+            $booking = $request->filled('booking_request_id')
+                // Confirming a customer's request: make the reservation and mark the request done.
+                ? $requests->confirm(
+                    BookingRequest::query()->findOrFail($request->integer('booking_request_id')),
+                    $request->string('name')->toString(),
+                    $request->string('phone')->toString(),
+                    $request->lanes(),
+                    $request->integer('minutes'),
+                    $request->integer('party_size'),
+                    $request->startsAt(),
+                    $request->input('notes'),
+                    $request->user(),
+                )
+                : $bookings->reserveForNewCustomer(
+                    $request->string('name')->toString(),
+                    $request->string('phone')->toString(),
+                    $request->lanes(),
+                    $request->integer('minutes'),
+                    $request->integer('party_size'),
+                    $request->startsAt(),
+                    $request->input('notes'),
+                );
         } catch (NoLaneAvailableException $exception) {
             $this->failLanes($exception);
+        } catch (InvalidStateException $exception) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => $exception->getMessage()]);
+
+            return back(fallback: route('staff.requests.index'));
         }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name is booked.', ['name' => $booking->customer->name])]);

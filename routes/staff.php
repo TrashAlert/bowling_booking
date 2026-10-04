@@ -3,6 +3,7 @@
 use App\Http\Controllers\Staff\BoardController;
 use App\Http\Controllers\Staff\BookingCheckInController;
 use App\Http\Controllers\Staff\BookingExtensionController;
+use App\Http\Controllers\Staff\BookingRequestController;
 use App\Http\Controllers\Staff\LaneClosureController;
 use App\Http\Controllers\Staff\LaneSessionController;
 use App\Http\Controllers\Staff\ReservationController;
@@ -27,6 +28,9 @@ Route::middleware(['auth', 'verified', 'staff'])->prefix('staff')->name('staff.'
     Route::patch('reservations/{booking}', [ReservationController::class, 'update'])->name('reservations.update');
     Route::delete('reservations/{booking}', [ReservationController::class, 'destroy'])->name('reservations.destroy');
     Route::patch('reservations/{booking}/lanes', [ReservationLaneController::class, 'update'])->name('reservations.lanes.update');
+
+    Route::get('requests', [BookingRequestController::class, 'index'])->name('requests.index');
+    Route::delete('requests/{bookingRequest}', [BookingRequestController::class, 'destroy'])->name('requests.destroy');
 
     Route::post('lanes/{lane}/closure', [LaneClosureController::class, 'store'])->name('lanes.closure.store');
     Route::patch('lanes/{lane}/closure', [LaneClosureController::class, 'update'])->name('lanes.closure.update');

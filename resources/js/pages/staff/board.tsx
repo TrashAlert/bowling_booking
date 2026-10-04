@@ -39,7 +39,13 @@ export default function Board({
     serverNow,
 }: Props) {
     usePoll(POLL_INTERVAL_MS, {
-        only: ['lanes', 'waitlist', 'reservations', 'serverNow'],
+        only: [
+            'lanes',
+            'waitlist',
+            'reservations',
+            'serverNow',
+            'requestsWaiting',
+        ],
     });
 
     const now = useServerClock(serverNow);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\BookingRequests;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -40,6 +41,10 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'version' => config('bowling.version'),
             'currencySymbol' => config('bowling.currency_symbol'),
+            // How many reservation requests are waiting, for the staff sidebar.
+            'requestsWaiting' => fn () => $request->user()?->isStaff()
+                ? app(BookingRequests::class)->waitingCount()
+                : null,
             'auth' => [
                 'user' => $request->user(),
             ],

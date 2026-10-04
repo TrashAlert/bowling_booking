@@ -1,4 +1,5 @@
 import { Form, router } from '@inertiajs/react';
+import type { RouteDefinition } from '@/wayfinder';
 import { useEffect, useRef, useState } from 'react';
 import ReservationController from '@/actions/App/Http/Controllers/Staff/ReservationController';
 import InputError from '@/components/input-error';
@@ -31,6 +32,7 @@ import { formatMinutes, formatTimeOfDay } from '@/lib/format';
 import { index } from '@/routes/staff/reservations';
 import type {
     LaneOption,
+    RequestToConfirm,
     ReservationDetail,
     ReservationLimits,
     SessionRules,
@@ -42,6 +44,8 @@ import type {
  */
 export function ReservationFormDialog({
     reservation,
+    fromRequest,
+    lookup,
     day,
     search,
     session,
@@ -50,6 +54,14 @@ export function ReservationFormDialog({
     onClose,
 }: {
     reservation?: ReservationDetail;
+    // A customer's request this reservation confirms; the form starts from it.
+    fromRequest?: RequestToConfirm;
+    // The address to ask which lanes are free, on the page the form is on.
+    // Defaults to the Reservations page.
+    lookup?: (query: {
+        starts_at: string;
+        minutes: number;
+    }) => RouteDefinition<'get'>;
     // The day the list is showing, used as the starting date for a new one.
     day: string;
     // What the list is being searched for, so a lane lookup keeps the search.
@@ -63,8 +75,10 @@ export function ReservationFormDialog({
     const today = toDateInput(opened);
 
     const [start, setStart] = useState(() => {
-        if (reservation) {
-            const startsAt = new Date(reservation.startsAt);
+        const startingFrom = reservation?.startsAt ?? fromRequest?.startsAt;
+
+        if (startingFrom) {
+            const startsAt = new Date(startingFrom);
 
             return {
                 date: toDateInput(startsAt),
@@ -77,10 +91,12 @@ export function ReservationFormDialog({
             : nextStartTime(opened, session.stepMinutes);
     });
     const [minutes, setMinutes] = useState(
-        reservation?.minutes ?? defaultSessionLength(session),
+        reservation?.minutes ??
+            fromRequest?.minutes ??
+            defaultSessionLength(session),
     );
     const [partySize, setPartySize] = useState(
-        String(reservation?.partySize ?? 2),
+        String(reservation?.partySize ?? fromRequest?.partySize ?? 2),
     );
     const [selected, setSelected] = useState(
         reservation?.lanes.map((lane) => lane.id) ?? [],
@@ -102,16 +118,18 @@ export function ReservationFormDialog({
         // The address is built from scratch each time, so nothing left over
         // from an earlier lookup (such as another booking's id) rides along.
         router.visit(
-            index({
-                query: {
-                    date: day,
-                    tz: browserTimeZone(),
-                    ...(search ? { search } : {}),
-                    starts_at: startsAt,
-                    minutes,
-                    ...(reservation ? { booking: reservation.id } : {}),
-                },
-            }),
+            lookup
+                ? lookup({ starts_at: startsAt, minutes })
+                : index({
+                      query: {
+                          date: day,
+                          tz: browserTimeZone(),
+                          ...(search ? { search } : {}),
+                          starts_at: startsAt,
+                          minutes,
+                          ...(reservation ? { booking: reservation.id } : {}),
+                      },
+                  }),
             {
                 only: ['laneOptions'],
                 preserveState: true,
@@ -121,7 +139,16 @@ export function ReservationFormDialog({
                 onFinish: () => setLoading(false),
             },
         );
-    }, [startsAt, minutes, lanesKey, lanesMissing, reservation, day, search]);
+    }, [
+        startsAt,
+        minutes,
+        lanesKey,
+        lanesMissing,
+        reservation,
+        day,
+        search,
+        lookup,
+    ]);
 
     const people = Number(partySize);
     const usualLanes = Math.ceil(people / session.maxPlayersPerLane);
@@ -135,7 +162,9 @@ export function ReservationFormDialog({
                 <DialogTitle>
                     {reservation
                         ? `Change ${reservation.customerName}'s reservation`
-                        : 'New reservation'}
+                        : fromRequest
+                          ? `Confirm ${fromRequest.name}'s request`
+                          : 'New reservation'}
                 </DialogTitle>
                 <DialogDescription>
                     Each lane closes{' '}
@@ -153,6 +182,13 @@ export function ReservationFormDialog({
                 >
                     {({ processing, errors }) => (
                         <>
+                            {fromRequest && (
+                                <input
+                                    type="hidden"
+                                    name="booking_request_id"
+                                    value={fromRequest.id}
+                                />
+                            )}
                             <div className="grid grid-cols-2 items-start gap-4">
                                 <div className="grid gap-2">
                                     <Label htmlFor="reservation-name">
@@ -161,7 +197,10 @@ export function ReservationFormDialog({
                                     <Input
                                         id="reservation-name"
                                         name="name"
-                                        defaultValue={reservation?.customerName}
+                                        defaultValue={
+                                            reservation?.customerName ??
+                                            fromRequest?.name
+                                        }
                                         required
                                         autoFocus={!reservation}
                                         autoComplete="off"
@@ -175,7 +214,11 @@ export function ReservationFormDialog({
                                     </Label>
                                     <PhoneInput
                                         id="reservation-phone"
-                                        defaultValue={reservation?.phone ?? ''}
+                                        defaultValue={
+                                            reservation?.phone ??
+                                            fromRequest?.phone ??
+                                            ''
+                                        }
                                         required
                                         autoComplete="off"
                                     />
@@ -303,7 +346,11 @@ export function ReservationFormDialog({
                                 <Input
                                     id="reservation-notes"
                                     name="notes"
-                                    defaultValue={reservation?.notes ?? ''}
+                                    defaultValue={
+                                        reservation?.notes ??
+                                        fromRequest?.notes ??
+                                        ''
+                                    }
                                     maxLength={500}
                                     autoComplete="off"
                                 />
@@ -324,7 +371,9 @@ export function ReservationFormDialog({
                                 >
                                     {reservation
                                         ? 'Save changes'
-                                        : 'Make reservation'}
+                                        : fromRequest
+                                          ? 'Confirm reservation'
+                                          : 'Make reservation'}
                                 </Button>
                             </DialogFooter>
                         </>

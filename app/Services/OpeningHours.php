@@ -87,6 +87,23 @@ class OpeningHours
     }
 
     /**
+     * Whether a session from $start to $end falls wholly inside one opening.
+     * Always true while no hours are set.
+     */
+    public function coversSession(CarbonInterface $start, CarbonInterface $end): bool
+    {
+        if (! $this->isSet()) {
+            return true;
+        }
+
+        $from = $this->local($start);
+        $until = $this->local($end);
+
+        return $this->openings($from)
+            ->contains(fn (array $opening) => $opening['opens'] <= $from && $until <= $opening['closes']);
+    }
+
+    /**
      * When the venue next opens after $moment, or null if it is open then,
      * no hours are set, or it is closed every day.
      */

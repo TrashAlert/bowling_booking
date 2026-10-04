@@ -20,8 +20,8 @@ import type { OpeningStatus } from '@/types';
 const POLL_INTERVAL_MS = 30_000;
 
 // What customers can do from this page. Joining the waitlist works, with a
-// stand-in for the deposit payment. Reserving opens a sample page that saves
-// nothing.
+// stand-in for the deposit payment. Reserving sends a request that staff
+// confirm by phone.
 const actions = [
     {
         icon: Users,
@@ -39,8 +39,8 @@ const actions = [
         description:
             'Planning ahead? Pick a date and time and we will keep a lane for you.',
         action: 'Make a reservation',
-        badge: 'Sample',
-        note: 'For now, please ask our staff at the counter.',
+        badge: null,
+        note: 'Send us a request and we will call you to confirm.',
         href: reserve(),
     },
 ];
@@ -173,9 +173,11 @@ export default function Welcome({
                                     />
                                     <CardTitle className="flex items-center gap-2">
                                         {item.title}
-                                        <Badge variant="secondary">
-                                            {item.badge}
-                                        </Badge>
+                                        {item.badge && (
+                                            <Badge variant="secondary">
+                                                {item.badge}
+                                            </Badge>
+                                        )}
                                     </CardTitle>
                                     <CardDescription>
                                         {item.description}

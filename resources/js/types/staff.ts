@@ -154,6 +154,36 @@ export type MovableReservation = Pick<
     | 'closedLaneNumbers'
 >;
 
+// A reservation request a customer sent from the public form. Times are
+// ISO 8601 in UTC; call times are "HH:MM" in the venue's time zone.
+export type BookingRequestRow = {
+    id: number;
+    name: string;
+    phone: string;
+    partySize: number;
+    minutes: number;
+    lanesNeeded: number;
+    startsAt: string;
+    // When the customer can be called; both null means any time.
+    contactFrom: string | null;
+    contactUntil: string | null;
+    // True while now falls inside the times the customer gave.
+    callNow: boolean;
+    notes: string | null;
+    // missed: nobody dealt with it before its time came.
+    status: 'pending' | 'missed' | 'confirmed' | 'declined';
+    submittedAt: string;
+    handledAt: string | null;
+    handledBy: string | null;
+    declineReason: string | null;
+};
+
+// What the reservation form starts from when it confirms a request.
+export type RequestToConfirm = Pick<
+    BookingRequestRow,
+    'id' | 'name' | 'phone' | 'partySize' | 'minutes' | 'startsAt' | 'notes'
+>;
+
 // A lane in the reservation form, and whether it is free for the chosen time.
 export type LaneOption = {
     id: number;

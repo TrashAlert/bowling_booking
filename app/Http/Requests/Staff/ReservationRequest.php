@@ -36,6 +36,8 @@ class ReservationRequest extends FormRequest
             'minutes' => $this->sessionMinutesRules(),
             ...$this->laneSelectionRules(),
             'notes' => ['nullable', 'string', 'max:500'],
+            // Set when the reservation confirms a customer's request.
+            'booking_request_id' => ['nullable', 'integer', 'exists:booking_requests,id'],
         ];
     }
 

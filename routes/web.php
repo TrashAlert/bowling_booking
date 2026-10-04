@@ -31,7 +31,12 @@ Route::put('waitlist/{entry:token}/push', [WaitlistPushSubscriptionController::c
     ->middleware('throttle:10,1')
     ->name('waitlist.push.store');
 
-Route::get('reserve', ReserveLaneController::class)->name('reserve');
+// Asking for a reservation. Staff call the customer to confirm it.
+Route::get('reserve', [ReserveLaneController::class, 'create'])->name('reserve');
+Route::post('reserve', [ReserveLaneController::class, 'store'])
+    ->middleware('throttle:5,1')
+    ->name('booking-requests.store');
+Route::get('reserve/thanks', [ReserveLaneController::class, 'thanks'])->name('booking-requests.thanks');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');

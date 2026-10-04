@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { CalendarClock, Columns3, LayoutGrid } from 'lucide-react';
+import { CalendarClock, Columns3, Inbox, LayoutGrid } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { board } from '@/routes/staff';
+import { index as requests } from '@/routes/staff/requests';
 import { index as reservations } from '@/routes/staff/reservations';
 import type { NavItem } from '@/types';
 
@@ -39,9 +40,18 @@ const staffNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
-    const { auth, version } = usePage().props;
+    const { auth, version, requestsWaiting } = usePage().props;
     const navItems = auth.user.role
-        ? [...mainNavItems, ...staffNavItems]
+        ? [
+              ...mainNavItems,
+              ...staffNavItems,
+              {
+                  title: 'Requests',
+                  href: requests(),
+                  icon: Inbox,
+                  badge: requestsWaiting,
+              },
+          ]
         : mainNavItems;
 
     return (

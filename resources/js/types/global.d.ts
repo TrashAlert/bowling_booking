@@ -13,6 +13,8 @@ declare module '@inertiajs/core' {
             version: string;
             // The symbol shown in front of amounts of money, e.g. "RM".
             currencySymbol: string;
+            // Reservation requests waiting for staff; null for non-staff.
+            requestsWaiting: number | null;
             auth: Auth;
             sidebarOpen: boolean;
             [key: string]: unknown;
