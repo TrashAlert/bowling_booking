@@ -8,7 +8,6 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import {
-    formatDay,
     formatSessionLength,
     formatShortDate,
     formatTime,
@@ -38,10 +37,7 @@ export default function RequestSent({ request }: { request: SentRequest }) {
             : 'soon';
 
     const details = [
-        [
-            'Date',
-            `${formatDay(request.startsAt)}, ${formatShortDate(request.startsAt)}`,
-        ],
+        ['Date', formatShortDate(request.startsAt)],
         [
             'Time',
             `${formatTime(request.startsAt)} (${formatSessionLength(request.minutes)})`,
