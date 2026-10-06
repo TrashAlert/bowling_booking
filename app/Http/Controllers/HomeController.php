@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\WaitlistStatus;
 use App\Models\WaitlistEntry;
+use App\Services\LaneAvailability;
 use App\Services\LaneInventory;
 use App\Services\OpeningHours;
 use App\Services\WaitlistEstimate;
@@ -20,9 +21,10 @@ class HomeController extends Controller
      * no hold for a called party, no closure, and not the closed hour before
      * a reservation. The lanes that parties already in the waitlist are about
      * to be called to are taken off, so the number is what is left for
-     * someone arriving now.
+     * someone arriving now. When every lane is out of order the page says
+     * that instead of a count.
      */
-    public function __invoke(WaitlistEstimate $estimate, LaneInventory $inventory, OpeningHours $hours): Response
+    public function __invoke(WaitlistEstimate $estimate, LaneInventory $inventory, OpeningHours $hours, LaneAvailability $availability): Response
     {
         return Inertia::render('welcome', [
             'lanes' => [
@@ -30,6 +32,8 @@ class HomeController extends Controller
                 'total' => $inventory->count(),
                 'waiting' => WaitlistEntry::query()->whereIn('status', WaitlistStatus::inLine())->count(),
             ],
+            // False while every lane is out of order.
+            'lanesOpen' => $availability->hasOpenLane(),
             'opening' => $hours->status(),
         ]);
     }

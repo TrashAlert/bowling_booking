@@ -49,6 +49,7 @@ test('a visitor cannot dodge the limit by naming another address when no proxy i
 test('a trusted proxy is believed when it says the customer is on https', function () {
     config(['app.trusted_proxies' => '127.0.0.1']);
     (new AppServiceProvider($this->app))->boot();
+    laneInPlay();
 
     $response = $this->withHeaders(['X-Forwarded-Proto' => 'https', 'X-Forwarded-Host' => 'bowl.example.com'])
         ->post('/waitlist/join', ['name' => 'Farah Aziz', 'phone' => '0123456789', 'party_size' => 4, 'minutes' => 60]);

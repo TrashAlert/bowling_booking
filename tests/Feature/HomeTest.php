@@ -22,6 +22,20 @@ test('the front page tells anyone how many lanes are free right now', function (
         ->where('lanes', ['free' => 1, 'total' => 4, 'waiting' => 0]));
 });
 
+test('the front page says whether any lane is open at all', function (Closure $lanes, bool $open) {
+    $lanes();
+
+    $response = $this->get(route('home'));
+
+    $response->assertInertia(fn (Assert $page) => $page->where('lanesOpen', $open));
+})->with([
+    'one lane is still open: open' => [
+        fn () => Lane::factory()->count(2)->sequence(['status' => LaneStatus::Open], ['status' => LaneStatus::OutOfOrder])->create(),
+        true,
+    ],
+    'every lane is out of order: closed' => [fn () => Lane::factory()->count(2)->outOfOrder()->create(), false],
+]);
+
 test('the front page says whether the venue is open and when that changes', function () {
     openDaily('10:00', '23:00');
     $this->travelTo(venueTime('2026-10-05 23:30'));

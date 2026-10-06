@@ -35,6 +35,15 @@ class LaneAvailability
     }
 
     /**
+     * Whether any lane is open at all, busy or not. When none is, every lane
+     * is out of order, or the venue has none yet.
+     */
+    public function hasOpenLane(): bool
+    {
+        return Lane::query()->where('status', LaneStatus::Open->value)->exists();
+    }
+
+    /**
      * When a lane reserved from $startsAt stops taking anyone: the lead time
      * before the start, or now if the reservation is sooner than that.
      */

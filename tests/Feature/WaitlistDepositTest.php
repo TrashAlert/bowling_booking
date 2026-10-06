@@ -7,6 +7,7 @@ use App\Services\WaitlistDeposits;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('a party sees what it is about to pay', function () {
+    laneInPlay();
     $deposit = app(WaitlistDeposits::class)->start('Farah', '0123456789', 90, 5);
 
     $response = $this->get(route('waitlist.deposit.show', ['deposit' => $deposit->token]));
@@ -22,6 +23,7 @@ test('a party sees what it is about to pay', function () {
 });
 
 test('paying puts the party in line and sends it to its own page', function () {
+    laneInPlay();
     $deposit = app(WaitlistDeposits::class)->start('Farah', '0123456789', 90, 5);
 
     $response = $this->post(route('waitlist.deposit.store', ['deposit' => $deposit->token]));
@@ -35,6 +37,7 @@ test('paying puts the party in line and sends it to its own page', function () {
 test('a deposit cannot be paid once the venue has closed', function () {
     openDaily('10:00', '23:00');
     $this->travelTo(venueTime('2026-10-05 22:55'));
+    laneInPlay();
     $deposit = app(WaitlistDeposits::class)->start('Farah', '0123456789', 90, 5);
     $this->travelTo(venueTime('2026-10-05 23:05'));
 

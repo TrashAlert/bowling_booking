@@ -25,9 +25,29 @@ const POLL_INTERVAL_MS = 30_000;
 
 /**
  * How long a party joining now is likely to wait, for the session length it
- * has picked. Null means no lane could be found to estimate from.
+ * has picked. Null means no lane could be found for it, so it can't join:
+ * every lane is closed, or none is free for that long.
  */
-function WaitEstimate({ minutes }: { minutes: number | null | undefined }) {
+function WaitEstimate({
+    minutes,
+    lanesOpen,
+}: {
+    minutes: number | null | undefined;
+    lanesOpen: boolean;
+}) {
+    if (!lanesOpen) {
+        return (
+            <div className="rounded-lg border p-3 text-sm">
+                <p className="font-medium">
+                    All our lanes are closed for maintenance right now
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                    Please check back later, or ask our staff at the counter.
+                </p>
+            </div>
+        );
+    }
+
     if (minutes === undefined) {
         return null;
     }
@@ -36,14 +56,14 @@ function WaitEstimate({ minutes }: { minutes: number | null | undefined }) {
         <div className="rounded-lg border p-3 text-sm">
             <p className="font-medium">
                 {minutes === null
-                    ? 'We cannot estimate the wait right now'
+                    ? 'We cannot find a lane for that session right now'
                     : minutes === 0
                       ? 'A lane is free right now'
                       : `Estimated wait: ${formatWait(minutes)}`}
             </p>
             <p className="mt-1 text-muted-foreground">
                 {minutes === null
-                    ? 'Please ask our staff at the counter.'
+                    ? 'Try a shorter session, or ask our staff at the counter.'
                     : minutes === 0
                       ? 'Join now and we will call you straight away.'
                       : 'Only an estimate. It assumes everyone ahead of you plays their full time.'}
@@ -79,14 +99,16 @@ function Closed({ opensAt }: { opensAt: string | null }) {
 /**
  * Where a party adds itself to the waitlist. While a lane is free for it,
  * sending the form puts it in line at once with nothing to pay. Otherwise it
- * pays a deposit on the next page first. The server decides which as the form
- * arrives; what is shown here is as of the last refresh.
+ * pays a deposit on the next page first. While no lane can be found for the
+ * session it can't join at all. The server decides which as the form arrives;
+ * what is shown here is as of the last refresh.
  */
 export default function WaitlistJoin({
     session,
     checkInMinutes,
     depositCents,
     waitMinutes,
+    lanesOpen,
     opening,
 }: {
     session: SessionRules;
@@ -94,6 +116,8 @@ export default function WaitlistJoin({
     depositCents: number;
     // The likely wait in minutes for each session length on offer.
     waitMinutes: Record<string, number | null>;
+    // False while every lane is out of order, when nobody can join.
+    lanesOpen: boolean;
     // Joining is only possible while the venue is open.
     opening: OpeningStatus;
 }) {
@@ -102,8 +126,12 @@ export default function WaitlistJoin({
     const [minutes, setMinutes] = useState(() => defaultSessionLength(session));
     // No deposit is asked for while a lane is free for the session picked.
     const laneIsFree = waitMinutes[minutes] === 0;
+    // Nothing to join, or pay for, while no lane can be found for the session.
+    const noLane = !lanesOpen || waitMinutes[minutes] === null;
 
-    usePoll(POLL_INTERVAL_MS, { only: ['waitMinutes', 'opening'] });
+    usePoll(POLL_INTERVAL_MS, {
+        only: ['waitMinutes', 'lanesOpen', 'opening'],
+    });
 
     if (!opening.isOpen) {
         return <Closed opensAt={opening.opensAt} />;
@@ -192,9 +220,12 @@ export default function WaitlistJoin({
                                     <InputError message={errors.minutes} />
                                 </fieldset>
 
-                                <WaitEstimate minutes={waitMinutes[minutes]} />
+                                <WaitEstimate
+                                    minutes={waitMinutes[minutes]}
+                                    lanesOpen={lanesOpen}
+                                />
 
-                                {laneIsFree ? (
+                                {noLane ? null : laneIsFree ? (
                                     <div className="rounded-lg border p-3 text-sm">
                                         <p className="font-medium">
                                             No deposit needed right now
@@ -235,9 +266,9 @@ export default function WaitlistJoin({
                                 <Button
                                     type="submit"
                                     className="w-full"
-                                    disabled={processing}
+                                    disabled={processing || noLane}
                                 >
-                                    {laneIsFree
+                                    {laneIsFree || noLane
                                         ? 'Join the waitlist'
                                         : `Continue to pay ${deposit}`}
                                 </Button>

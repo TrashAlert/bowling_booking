@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\InvalidStateException;
+use App\Exceptions\NoLaneAvailableException;
 use App\Models\WaitlistDeposit;
 use App\Models\WaitlistEntry;
 use Illuminate\Support\Facades\DB;
@@ -11,8 +12,9 @@ use Illuminate\Support\Facades\DB;
  * Joining the waitlist online. While a lane is free for the party no deposit
  * is asked for and it goes straight into the line. Otherwise it pays a
  * deposit first and is only put in line once that is paid. It can only be
- * done while the venue is open. Walk-ins added by staff at the counter don't
- * come through here and pay no deposit.
+ * done while the venue is open, and while a lane can be found for the
+ * session at all. Walk-ins added by staff at the counter don't come through
+ * here and pay no deposit.
  */
 class WaitlistDeposits
 {
@@ -40,6 +42,7 @@ class WaitlistDeposits
      * takes no place in it.
      *
      * @throws InvalidStateException when the venue is closed now.
+     * @throws NoLaneAvailableException when no lane can be found for the session.
      */
     public function start(string $name, string $phone, int $minutes, int $partySize): WaitlistDeposit
     {
@@ -65,10 +68,16 @@ class WaitlistDeposits
      * cents: nothing while a lane is free for it straight away, and the
      * deposit once it would have to wait. A lane others are already waiting
      * for is not free for it.
+     *
+     * @throws NoLaneAvailableException when no lane can be found for the session, so there is no line worth paying to join.
      */
     public function amountDue(int $minutes): int
     {
         $wait = $this->estimate->forNewParty()[$minutes] ?? null;
+
+        if ($wait === null) {
+            throw new NoLaneAvailableException(1, 0);
+        }
 
         return $wait === 0 ? 0 : config('bowling.waitlist_deposit_cents');
     }

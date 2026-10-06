@@ -1,8 +1,9 @@
 <?php
 
 use App\Enums\DepositOutcome;
-use App\Enums\LaneStatus;
 use App\Enums\WaitlistStatus;
+use App\Exceptions\NoLaneAvailableException;
+use App\Models\Customer;
 use App\Models\Lane;
 use App\Models\WaitlistDeposit;
 use App\Models\WaitlistEntry;
@@ -15,6 +16,8 @@ beforeEach(function () {
 });
 
 test('asking to join online notes the request without putting the party in line', function () {
+    laneInPlay();
+
     $deposit = app(WaitlistDeposits::class)->start('Farah', '0123456789', 90, 5);
 
     expect($deposit->isPaid())->toBeFalse()
@@ -22,7 +25,7 @@ test('asking to join online notes the request without putting the party in line'
         ->and($deposit->outcome())->toBeNull()
         ->and($deposit->token)->toHaveLength(40);
     $this->assertDatabaseCount('waitlist_entries', 0);
-    $this->assertDatabaseCount('customers', 0);
+    $this->assertDatabaseMissing('customers', ['name' => 'Farah']);
 });
 
 test('no deposit is asked for while a lane is free, and the party is in line at once', function () {
@@ -44,13 +47,25 @@ test('the deposit applies once the party would have to wait for a lane', functio
         ->and($deposit->entry)->toBeNull();
 })->with([
     'the lane is in play' => [fn (Lane $lane) => app(BookingService::class)->checkIn(reserveLanes($lane, now()))],
-    'the lane is out of order' => [fn (Lane $lane) => $lane->update(['status' => LaneStatus::OutOfOrder])],
     'someone is already waiting for the lane' => [fn () => joinWaitlist()],
     'the session would run into a reservation' => [fn (Lane $lane) => reserveLanes($lane, now()->addMinutes(90))],
 ]);
 
+test('joining online is refused while no lane can be found for the session', function (Closure $lanes) {
+    $lanes();
+
+    expect(fn () => app(WaitlistDeposits::class)->start('Farah', '0123456789', 60, 5))
+        ->toThrow(NoLaneAvailableException::class);
+    $this->assertDatabaseCount('waitlist_deposits', 0);
+    $this->assertDatabaseCount('waitlist_entries', 0);
+})->with([
+    'every lane is out of order' => [fn () => Lane::factory()->outOfOrder()->create()],
+    'the venue has no lanes yet' => [fn () => null],
+]);
+
 test('the deposit amount comes from the config', function () {
     config(['bowling.waitlist_deposit_cents' => 2500]);
+    laneInPlay();
 
     $deposit = app(WaitlistDeposits::class)->start('Farah', '0123456789', 90, 5);
 
@@ -58,6 +73,7 @@ test('the deposit amount comes from the config', function () {
 });
 
 test('paying the deposit puts the party in line with what it asked for', function () {
+    laneInPlay();
     $deposit = app(WaitlistDeposits::class)->start('Farah', '0123456789', 90, 5);
 
     $entry = app(WaitlistDeposits::class)->confirmPayment($deposit);
@@ -72,6 +88,7 @@ test('paying the deposit puts the party in line with what it asked for', functio
 });
 
 test('a party takes its place in line when it pays, not when it asked to join', function () {
+    laneInPlay();
     $slowPayer = app(WaitlistDeposits::class)->start('Slow payer', '0123456789', 60, 4);
     $this->travel(2)->minutes();
     joinWaitlist(name: 'Joined at the counter meanwhile');
@@ -83,6 +100,7 @@ test('a party takes its place in line when it pays, not when it asked to join', 
 });
 
 test('a deposit reported as paid twice keeps the party in line once', function () {
+    laneInPlay();
     $deposit = app(WaitlistDeposits::class)->start('Farah', '0123456789', 60, 4);
     $first = app(WaitlistDeposits::class)->confirmPayment($deposit);
 
@@ -90,7 +108,7 @@ test('a deposit reported as paid twice keeps the party in line once', function (
 
     expect($second->id)->toBe($first->id);
     $this->assertDatabaseCount('waitlist_entries', 1);
-    $this->assertDatabaseCount('customers', 1);
+    expect(Customer::query()->where('name', 'Farah')->count())->toBe(1);
 });
 
 test('what becomes of a paid deposit follows what happened to the party', function (Closure $happens, DepositOutcome $outcome) {

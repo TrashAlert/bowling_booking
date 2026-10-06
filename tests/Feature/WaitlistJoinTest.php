@@ -48,6 +48,8 @@ test('the waitlist page gives the likely wait for each session length', function
 });
 
 test('joining saves the request and sends the party to pay, without putting it in line', function () {
+    laneInPlay();
+
     $response = $this->post(route('waitlist.store'), joinForm());
 
     $deposit = WaitlistDeposit::query()->sole();
@@ -75,6 +77,42 @@ test('joining while a lane is free puts the party in line with no deposit to pay
         ->and($entry->deposit->amount_cents)->toBe(0);
 });
 
+test('the waitlist page says whether any lane is open at all', function (Closure $lane, bool $open) {
+    $lane();
+
+    $response = $this->get(route('waitlist.join'));
+
+    $response->assertInertia(fn (Assert $page) => $page->where('lanesOpen', $open));
+})->with([
+    'a lane is in play: open' => [fn () => laneInPlay(), true],
+    'every lane is out of order: closed' => [fn () => Lane::factory()->outOfOrder()->create(), false],
+]);
+
+test('no one can join online while every lane is closed', function () {
+    Lane::factory()->outOfOrder()->create();
+
+    $response = $this->post(route('waitlist.store'), joinForm());
+
+    $response->assertSessionHasErrors([
+        'closed' => 'All our lanes are closed for maintenance right now. Please check back later, or ask our staff at the counter.',
+    ]);
+    $this->assertDatabaseCount('waitlist_deposits', 0);
+    $this->assertDatabaseCount('waitlist_entries', 0);
+});
+
+test('no one can join online for a session no open lane has room for', function () {
+    // The only lane is booked solid for longer than the estimate looks ahead.
+    reserveLanes(Lane::factory()->create(), now(), minutes: 49 * 60);
+
+    $response = $this->post(route('waitlist.store'), joinForm());
+
+    $response->assertSessionHasErrors([
+        'minutes' => 'We can\'t find a lane for that session right now. Try a shorter one, or ask our staff at the counter.',
+    ]);
+    $this->assertDatabaseCount('waitlist_deposits', 0);
+    $this->assertDatabaseCount('waitlist_entries', 0);
+});
+
 test('while the venue is closed the page says so and when it opens', function () {
     openDaily('10:00', '23:00');
     $this->travelTo(venueTime('2026-10-05 23:30'));
@@ -99,6 +137,7 @@ test('no one can join the waitlist while the venue is closed', function () {
 test('a party can join during opening hours', function () {
     openDaily('10:00', '23:00');
     $this->travelTo(venueTime('2026-10-05 22:30'));
+    laneInPlay();
 
     $response = $this->post(route('waitlist.store'), joinForm());
 
@@ -150,6 +189,7 @@ test('a session length that is not offered is refused', function () {
 });
 
 test('joining is refused after ten tries in a minute', function () {
+    laneInPlay();
     foreach (range(1, 10) as $try) {
         $this->post(route('waitlist.store'), joinForm());
     }

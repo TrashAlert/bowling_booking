@@ -55,14 +55,16 @@ type LaneCount = {
 
 /**
  * How many lanes are left for someone arriving now, so a customer can choose
- * between walking in and booking ahead. Shown once the venue has lanes.
+ * between walking in and booking ahead. Shown once the venue has lanes. While
+ * every lane is out of order it says so instead, since nobody can play.
  */
 function LanesFree({
     free,
     total,
     waiting,
+    lanesOpen,
     opening,
-}: LaneCount & { opening: OpeningStatus }) {
+}: LaneCount & { lanesOpen: boolean; opening: OpeningStatus }) {
     if (!opening.isOpen) {
         return (
             <div className="mx-auto mt-6 w-fit rounded-xl border px-5 py-3">
@@ -84,6 +86,23 @@ function LanesFree({
 
     if (total === 0) {
         return null;
+    }
+
+    if (!lanesOpen) {
+        return (
+            <div className="mx-auto mt-6 w-fit rounded-xl border px-5 py-3">
+                <p className="flex items-center justify-center gap-2 font-medium">
+                    <span
+                        aria-hidden
+                        className="size-2.5 rounded-full bg-amber-500"
+                    />
+                    All our lanes are closed for maintenance right now
+                </p>
+                <p className="text-sm text-muted-foreground">
+                    Please check back later, or reserve a lane for another day.
+                </p>
+            </div>
+        );
     }
 
     const groups = `${waiting} ${waiting === 1 ? 'group' : 'groups'}`;
@@ -125,14 +144,17 @@ function LanesFree({
 
 export default function Welcome({
     lanes,
+    lanesOpen,
     opening,
 }: {
     lanes: LaneCount;
+    // False while every lane is out of order.
+    lanesOpen: boolean;
     opening: OpeningStatus;
 }) {
     const { auth, name } = usePage().props;
 
-    usePoll(POLL_INTERVAL_MS, { only: ['lanes', 'opening'] });
+    usePoll(POLL_INTERVAL_MS, { only: ['lanes', 'lanesOpen', 'opening'] });
 
     return (
         <>
@@ -160,7 +182,11 @@ export default function Welcome({
                         <p className="mt-3 text-lg text-muted-foreground">
                             Come and bowl. Walk in, or book a lane ahead.
                         </p>
-                        <LanesFree {...lanes} opening={opening} />
+                        <LanesFree
+                            {...lanes}
+                            lanesOpen={lanesOpen}
+                            opening={opening}
+                        />
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">

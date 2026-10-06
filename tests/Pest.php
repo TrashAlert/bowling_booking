@@ -93,6 +93,19 @@ function reserveLanes(Lane|array $lanes, CarbonImmutable $startsAt, int $minutes
 }
 
 /**
+ * A lane with a party playing on it for the next hour, so that anyone
+ * joining the waitlist online has to wait for it and pay a deposit.
+ */
+function laneInPlay(): Lane
+{
+    $lane = Lane::factory()->create();
+
+    app(BookingService::class)->checkIn(reserveLanes($lane, CarbonImmutable::now()));
+
+    return $lane;
+}
+
+/**
  * Put a new walk-in party at the end of the waitlist.
  */
 function joinWaitlist(int $minutes = 60, int $partySize = 4, string $name = 'Walk-in party'): WaitlistEntry
