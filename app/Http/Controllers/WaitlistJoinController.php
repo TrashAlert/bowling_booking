@@ -20,12 +20,13 @@ class WaitlistJoinController extends Controller
     /**
      * Show the page where a party adds itself to the waitlist.
      */
-    public function create(LaneBoard $board, WaitlistEstimate $estimate, OpeningHours $hours, LaneAvailability $availability): Response
+    public function create(LaneBoard $board, WaitlistEstimate $estimate, OpeningHours $hours, LaneAvailability $availability, WaitlistDeposits $deposits): Response
     {
         return Inertia::render('waitlist/join', [
             'session' => $board->sessionRules(),
             'checkInMinutes' => config('bowling.waitlist_checkin_minutes'),
-            'depositCents' => config('bowling.waitlist_deposit_cents'),
+            // Zero while the deposit is turned off in the settings.
+            'depositCents' => $deposits->depositCents(),
             // Joining is only possible while the venue is open.
             'opening' => $hours->status(),
             // The likely wait for each session length; the page refreshes it.

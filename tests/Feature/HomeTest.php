@@ -3,6 +3,7 @@
 use App\Enums\LaneStatus;
 use App\Models\Lane;
 use App\Services\WaitlistService;
+use App\Services\WaitlistSettings;
 use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(function () {
@@ -34,6 +35,17 @@ test('the front page says whether any lane is open at all', function (Closure $l
         true,
     ],
     'every lane is out of order: closed' => [fn () => Lane::factory()->count(2)->outOfOrder()->create(), false],
+]);
+
+test('the front page says whether a deposit is asked for to join the waitlist', function (bool $required) {
+    app(WaitlistSettings::class)->requireDeposit($required);
+
+    $response = $this->get(route('home'));
+
+    $response->assertInertia(fn (Assert $page) => $page->where('depositAsked', $required));
+})->with([
+    'the deposit is on' => [true],
+    'the deposit is turned off' => [false],
 ]);
 
 test('the front page says whether the venue is open and when that changes', function () {

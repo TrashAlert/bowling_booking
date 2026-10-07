@@ -113,6 +113,7 @@ export default function WaitlistJoin({
 }: {
     session: SessionRules;
     checkInMinutes: number;
+    // What a party that has to wait pays; zero while the deposit is off.
     depositCents: number;
     // The likely wait in minutes for each session length on offer.
     waitMinutes: Record<string, number | null>;
@@ -124,8 +125,10 @@ export default function WaitlistJoin({
     const { currencySymbol } = usePage().props;
     const deposit = formatMoney(depositCents, currencySymbol);
     const [minutes, setMinutes] = useState(() => defaultSessionLength(session));
-    // No deposit is asked for while a lane is free for the session picked.
+    // No deposit is asked for while a lane is free for the session picked,
+    // or at all while the venue has the deposit turned off.
     const laneIsFree = waitMinutes[minutes] === 0;
+    const depositAsked = depositCents > 0;
     // Nothing to join, or pay for, while no lane can be found for the session.
     const noLane = !lanesOpen || waitMinutes[minutes] === null;
 
@@ -225,7 +228,7 @@ export default function WaitlistJoin({
                                     lanesOpen={lanesOpen}
                                 />
 
-                                {noLane ? null : laneIsFree ? (
+                                {noLane || !depositAsked ? null : laneIsFree ? (
                                     <div className="rounded-lg border p-3 text-sm">
                                         <p className="font-medium">
                                             No deposit needed right now
@@ -268,7 +271,7 @@ export default function WaitlistJoin({
                                     className="w-full"
                                     disabled={processing || noLane}
                                 >
-                                    {laneIsFree || noLane
+                                    {laneIsFree || noLane || !depositAsked
                                         ? 'Join the waitlist'
                                         : `Continue to pay ${deposit}`}
                                 </Button>

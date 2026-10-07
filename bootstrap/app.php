@@ -19,6 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
+        // A payment provider's server posts here with no session of ours;
+        // the provider checks each notice is really its own instead.
+        $middleware->preventRequestForgery(except: ['waitlist/deposit/notice/*']);
+
         $middleware->web(append: [
             HandleAppearance::class,
             HandleInertiaRequests::class,

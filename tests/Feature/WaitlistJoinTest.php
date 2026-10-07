@@ -4,6 +4,7 @@ use App\Enums\WaitlistStatus;
 use App\Models\Lane;
 use App\Models\WaitlistDeposit;
 use App\Models\WaitlistEntry;
+use App\Services\WaitlistSettings;
 use Inertia\Testing\AssertableInertia as Assert;
 
 /**
@@ -32,6 +33,26 @@ test('anyone can open the waitlist page without logging in', function () {
         ->where('checkInMinutes', 5)
         ->where('depositCents', 1000)
         ->where('currencySymbol', 'RM'));
+});
+
+test('the waitlist page asks for no deposit while the deposit is turned off', function () {
+    app(WaitlistSettings::class)->requireDeposit(false);
+
+    $response = $this->get(route('waitlist.join'));
+
+    $response->assertInertia(fn (Assert $page) => $page->where('depositCents', 0));
+});
+
+test('with the deposit turned off joining puts a party that has to wait straight in line', function () {
+    app(WaitlistSettings::class)->requireDeposit(false);
+    laneInPlay();
+
+    $response = $this->post(route('waitlist.store'), joinForm());
+
+    $entry = WaitlistEntry::query()->where('minutes', 90)->sole();
+    $response->assertRedirect(route('waitlist.show', ['entry' => $entry->token]));
+    expect($entry->status)->toBe(WaitlistStatus::Waiting)
+        ->and($entry->deposit->amount_cents)->toBe(0);
 });
 
 test('the waitlist page gives the likely wait for each session length', function () {

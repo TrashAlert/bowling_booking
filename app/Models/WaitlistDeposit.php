@@ -30,6 +30,8 @@ class WaitlistDeposit extends Model
         'amount_cents',
         'paid_at',
         'waitlist_entry_id',
+        'payment_provider',
+        'payment_reference',
     ];
 
     // Never send the secret token to the browser by accident.

@@ -11,7 +11,7 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { dashboard, login, reserve } from '@/routes';
+import { reserve } from '@/routes';
 import { join } from '@/routes/waitlist';
 import { formatTime, formatWhen } from '@/lib/format';
 import type { OpeningStatus } from '@/types';
@@ -31,6 +31,8 @@ const actions = [
         action: 'Join the waitlist',
         badge: 'Trial',
         note: 'A deposit is only needed when every lane is busy.',
+        // Said instead while the venue has the deposit turned off.
+        noteWithoutDeposit: 'No deposit is needed to join.',
         href: join(),
     },
     {
@@ -41,6 +43,7 @@ const actions = [
         action: 'Make a reservation',
         badge: null,
         note: 'Send us a request and we will call you to confirm.',
+        noteWithoutDeposit: null,
         href: reserve(),
     },
 ];
@@ -145,16 +148,21 @@ function LanesFree({
 export default function Welcome({
     lanes,
     lanesOpen,
+    depositAsked,
     opening,
 }: {
     lanes: LaneCount;
     // False while every lane is out of order.
     lanesOpen: boolean;
+    // False while the deposit for joining the waitlist online is turned off.
+    depositAsked: boolean;
     opening: OpeningStatus;
 }) {
-    const { auth, name } = usePage().props;
+    const { name } = usePage().props;
 
-    usePoll(POLL_INTERVAL_MS, { only: ['lanes', 'lanesOpen', 'opening'] });
+    usePoll(POLL_INTERVAL_MS, {
+        only: ['lanes', 'lanesOpen', 'depositAsked', 'opening'],
+    });
 
     return (
         <>
@@ -165,13 +173,6 @@ export default function Welcome({
                     <span className="truncate font-semibold tracking-tight">
                         {name}
                     </span>
-                    <Button variant="ghost" size="sm" asChild>
-                        {auth.user ? (
-                            <Link href={dashboard()}>Staff area</Link>
-                        ) : (
-                            <Link href={login()}>Staff login</Link>
-                        )}
-                    </Button>
                 </header>
 
                 <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center gap-10 p-4 sm:p-6">
@@ -189,15 +190,20 @@ export default function Welcome({
                         />
                     </div>
 
+                    {/* Each card's heading, note and button sit on rows shared
+                        with the card beside it, so the two always line up. */}
                     <div className="grid gap-4 sm:grid-cols-2">
                         {actions.map((item) => (
-                            <Card key={item.title}>
+                            <Card
+                                key={item.title}
+                                className="row-span-3 grid grid-rows-subgrid"
+                            >
                                 <CardHeader>
                                     <item.icon
                                         aria-hidden
                                         className="mb-2 size-6 text-muted-foreground"
                                     />
-                                    <CardTitle className="flex items-center gap-2">
+                                    <CardTitle className="flex min-h-6 items-center gap-2">
                                         {item.title}
                                         {item.badge && (
                                             <Badge variant="secondary">
@@ -210,7 +216,10 @@ export default function Welcome({
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="text-sm text-muted-foreground">
-                                    {item.note}
+                                    {depositAsked
+                                        ? item.note
+                                        : (item.noteWithoutDeposit ??
+                                          item.note)}
                                 </CardContent>
                                 <CardFooter>
                                     <Button className="w-full" asChild>

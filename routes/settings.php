@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\DepositController;
 use App\Http\Controllers\Settings\LaneController;
 use App\Http\Controllers\Settings\OpeningHoursController;
 use App\Http\Controllers\Settings\ProfileController;
@@ -33,6 +34,9 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
 
     Route::get('settings/opening-hours', [OpeningHoursController::class, 'edit'])->name('opening-hours.edit');
     Route::put('settings/opening-hours', [OpeningHoursController::class, 'update'])->name('opening-hours.update');
+
+    Route::get('settings/deposit', [DepositController::class, 'edit'])->name('deposit.edit');
+    Route::put('settings/deposit', [DepositController::class, 'update'])->name('deposit.update');
 
     Route::get('settings/users', [UserController::class, 'index'])->name('users.index');
     Route::post('settings/users', [UserController::class, 'store'])->name('users.store');

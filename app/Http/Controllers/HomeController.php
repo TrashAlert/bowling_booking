@@ -7,6 +7,7 @@ use App\Models\WaitlistEntry;
 use App\Services\LaneAvailability;
 use App\Services\LaneInventory;
 use App\Services\OpeningHours;
+use App\Services\WaitlistDeposits;
 use App\Services\WaitlistEstimate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -24,7 +25,7 @@ class HomeController extends Controller
      * someone arriving now. When every lane is out of order the page says
      * that instead of a count.
      */
-    public function __invoke(WaitlistEstimate $estimate, LaneInventory $inventory, OpeningHours $hours, LaneAvailability $availability): Response
+    public function __invoke(WaitlistEstimate $estimate, LaneInventory $inventory, OpeningHours $hours, LaneAvailability $availability, WaitlistDeposits $deposits): Response
     {
         return Inertia::render('welcome', [
             'lanes' => [
@@ -34,6 +35,8 @@ class HomeController extends Controller
             ],
             // False while every lane is out of order.
             'lanesOpen' => $availability->hasOpenLane(),
+            // False while the deposit for joining online is turned off.
+            'depositAsked' => $deposits->depositCents() > 0,
             'opening' => $hours->status(),
         ]);
     }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ReserveLaneController;
 use App\Http\Controllers\WaitlistDepositController;
+use App\Http\Controllers\WaitlistDepositNoticeController;
 use App\Http\Controllers\WaitlistEntryController;
 use App\Http\Controllers\WaitlistJoinController;
 use App\Http\Controllers\WaitlistPushSubscriptionController;
@@ -16,6 +17,12 @@ Route::get('waitlist/join', [WaitlistJoinController::class, 'create'])->name('wa
 Route::post('waitlist/join', [WaitlistJoinController::class, 'store'])
     ->middleware('throttle:10,1')
     ->name('waitlist.store');
+
+// Where a payment provider tells us a deposit has been paid. It is not a
+// page: the provider's server posts here, so there is no session to check.
+Route::post('waitlist/deposit/notice/{provider}', WaitlistDepositNoticeController::class)
+    ->middleware('throttle:60,1')
+    ->name('waitlist.deposit.notice');
 
 Route::get('waitlist/deposit/{deposit:token}', [WaitlistDepositController::class, 'show'])->name('waitlist.deposit.show');
 Route::post('waitlist/deposit/{deposit:token}', [WaitlistDepositController::class, 'store'])->name('waitlist.deposit.store');

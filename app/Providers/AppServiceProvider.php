@@ -2,12 +2,14 @@
 
 namespace App\Providers;
 
+use App\Services\Payments\DepositPaymentProvider;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use InvalidArgumentException;
 use Minishlink\WebPush\WebPush;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,6 +24,18 @@ class AppServiceProvider extends ServiceProvider
             'publicKey' => config('services.web_push.public_key'),
             'privateKey' => config('services.web_push.private_key'),
         ]]));
+
+        // Whoever takes deposits: the provider named in config/bowling.php.
+        $this->app->bind(DepositPaymentProvider::class, function () {
+            $name = config('bowling.deposit_payments.provider');
+            $class = config("bowling.deposit_payments.providers.{$name}");
+
+            if ($class === null) {
+                throw new InvalidArgumentException("No deposit payment provider is set up under the name [{$name}]. See config/bowling.php.");
+            }
+
+            return $this->app->make($class);
+        });
     }
 
     /**

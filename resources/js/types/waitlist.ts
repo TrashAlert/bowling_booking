@@ -31,6 +31,15 @@ export type WaitlistTicket = {
     } | null;
 };
 
+// How the deposit is being taken.
+export type DepositPayment = {
+    // True while no real payment provider is connected: Pay takes no money.
+    standIn: boolean;
+    // True once the party has been sent to the provider's page to pay and
+    // the provider has not yet told us it did.
+    awaiting: boolean;
+};
+
 // What a party is about to pay a deposit for.
 export type PendingDeposit = {
     name: string;

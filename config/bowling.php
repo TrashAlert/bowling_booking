@@ -1,12 +1,14 @@
 <?php
 
+use App\Services\Payments\StandInPaymentProvider;
+
 // Settings for how bookings behave. Each can be overridden in your .env file.
 
 return [
 
     // The version shown in the staff sidebar. Not read from .env: raise it
     // here with each change that should be tracked.
-    'version' => '0.8.0b',
+    'version' => '0.9.0',
 
     // The venue's time zone. Opening hours are clock times in this zone.
     'timezone' => env('BOWLING_TIMEZONE', 'Asia/Kuala_Lumpur'),
@@ -52,6 +54,19 @@ return [
     // toward the party's bill once it is seated. Walk-ins added by staff at
     // the counter pay no deposit.
     'waitlist_deposit_cents' => (int) env('BOWLING_WAITLIST_DEPOSIT_CENTS', 1000),
+
+    // Who takes that deposit. "provider" names one of "providers"; the
+    // stand-in takes no money and is only for trying the waitlist out. To
+    // connect a real one (FPX, DuitNow, cards), write a class that implements
+    // App\Services\Payments\DepositPaymentProvider, list it here under a
+    // short name, and set BOWLING_DEPOSIT_PAYMENT_PROVIDER to that name.
+    'deposit_payments' => [
+        'provider' => env('BOWLING_DEPOSIT_PAYMENT_PROVIDER', StandInPaymentProvider::NAME),
+
+        'providers' => [
+            StandInPaymentProvider::NAME => StandInPaymentProvider::class,
+        ],
+    ],
 
     // The symbol shown in front of amounts of money.
     'currency_symbol' => env('BOWLING_CURRENCY_SYMBOL', 'RM'),

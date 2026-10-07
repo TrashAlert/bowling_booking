@@ -10,6 +10,7 @@ use App\Models\WaitlistEntry;
 use App\Services\BookingService;
 use App\Services\WaitlistDeposits;
 use App\Services\WaitlistService;
+use App\Services\WaitlistSettings;
 
 beforeEach(function () {
     $this->travelTo('2026-10-01 18:00:00');
@@ -50,6 +51,17 @@ test('the deposit applies once the party would have to wait for a lane', functio
     'someone is already waiting for the lane' => [fn () => joinWaitlist()],
     'the session would run into a reservation' => [fn (Lane $lane) => reserveLanes($lane, now()->addMinutes(90))],
 ]);
+
+test('with the deposit turned off a party that has to wait joins the line for free', function () {
+    app(WaitlistSettings::class)->requireDeposit(false);
+    laneInPlay();
+
+    $deposit = app(WaitlistDeposits::class)->start('Farah', '0123456789', 60, 5);
+
+    expect($deposit->amount_cents)->toBe(0)
+        ->and($deposit->entry->status)->toBe(WaitlistStatus::Waiting)
+        ->and($deposit->entry->customer->name)->toBe('Farah');
+});
 
 test('joining online is refused while no lane can be found for the session', function (Closure $lanes) {
     $lanes();

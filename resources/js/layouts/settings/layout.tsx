@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { cn, toUrl } from '@/lib/utils';
 import { edit as editAppearance } from '@/routes/appearance';
+import { edit as editDeposit } from '@/routes/deposit';
 import { edit as editLanes } from '@/routes/lanes';
 import { edit as editOpeningHours } from '@/routes/opening-hours';
 import { edit } from '@/routes/profile';
@@ -40,6 +41,11 @@ const adminNavItems: NavItem[] = [
     {
         title: 'Opening hours',
         href: editOpeningHours(),
+        icon: null,
+    },
+    {
+        title: 'Deposit',
+        href: editDeposit(),
         icon: null,
     },
     {
