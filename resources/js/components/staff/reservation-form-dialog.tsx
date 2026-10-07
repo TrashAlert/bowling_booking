@@ -167,9 +167,9 @@ export function ReservationFormDialog({
                           : 'New reservation'}
                 </DialogTitle>
                 <DialogDescription>
-                    Each lane closes{' '}
-                    {formatMinutes(limits.leadMinutes * 60_000)} before the
-                    start, so it has to be empty from then on.
+                    {limits.leadMinutes > 0
+                        ? `Each lane closes ${formatMinutes(limits.leadMinutes * 60_000)} before the start, so it has to be empty from then on.`
+                        : 'Each lane has to be empty for the whole session.'}
                 </DialogDescription>
 
                 <Form

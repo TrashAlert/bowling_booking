@@ -8,31 +8,38 @@ return [
 
     // The version shown in the staff sidebar. Not read from .env: raise it
     // here with each change that should be tracked.
-    'version' => '0.9.0',
+    'version' => '0.9.1',
 
-    // The venue's time zone. Opening hours are clock times in this zone.
+    // The venue's time zone. Opening hours are clock times in this zone. An
+    // admin can change it under Settings, Business.
     'timezone' => env('BOWLING_TIMEZONE', 'Asia/Kuala_Lumpur'),
 
     // Sessions are booked in steps of this many minutes. One step is also the
     // shortest session.
     'session_step_minutes' => (int) env('BOWLING_SESSION_STEP_MINUTES', 30),
 
-    // The longest session that can be booked.
+    // The longest session that can be booked. An admin can change it under
+    // Settings, Booking rules.
     'max_session_minutes' => (int) env('BOWLING_MAX_SESSION_MINUTES', 240),
 
     // How many people share one lane. It is also the most that one walk-in
-    // entry can hold: a bigger group is entered once per lane.
+    // entry can hold: a bigger group is entered once per lane. An admin can
+    // change it under Settings, Booking rules.
     'max_players_per_lane' => (int) env('BOWLING_MAX_PLAYERS_PER_LANE', 6),
 
     // How long before a reservation starts its lanes stop taking anyone, so
-    // they are sure to be empty on time.
+    // they are sure to be empty on time. An admin can change it under
+    // Settings, Booking rules; reservations already made keep the closing
+    // time they were given.
     'reservation_lead_minutes' => (int) env('BOWLING_RESERVATION_LEAD_MINUTES', 60),
 
     // How long before a reservation starts its party can be checked in.
-    // Earlier than that, check-in is refused.
+    // Earlier than that, check-in is refused. An admin can change it under
+    // Settings, Booking rules.
     'check_in_opens_minutes' => (int) env('BOWLING_CHECK_IN_OPENS_MINUTES', 60),
 
-    // How far ahead a reservation can be made.
+    // How far ahead a reservation can be made, by staff or asked for by a
+    // customer. An admin can change it under Settings, Booking rules.
     'reservation_max_days_ahead' => (int) env('BOWLING_RESERVATION_MAX_DAYS_AHEAD', 90),
 
     // The lengths staff can pick when closing a lane for a short job such as
@@ -47,12 +54,14 @@ return [
     'hold_minutes' => (int) env('BOWLING_HOLD_MINUTES', 10),
 
     // How long after the start time a reservation can arrive before it's a no-show
-    // and its lanes go back to the waitlist.
+    // and its lanes go back to the waitlist. An admin can change it under
+    // Settings, Booking rules.
     'no_show_grace_minutes' => (int) env('BOWLING_NO_SHOW_GRACE_MINUTES', 15),
 
     // What a party pays to join the waitlist online, in cents. It counts
     // toward the party's bill once it is seated. Walk-ins added by staff at
-    // the counter pay no deposit.
+    // the counter pay no deposit. An admin can change it under Settings,
+    // Deposit; this is only what it is until they do.
     'waitlist_deposit_cents' => (int) env('BOWLING_WAITLIST_DEPOSIT_CENTS', 1000),
 
     // Who takes that deposit. "provider" names one of "providers"; the
@@ -68,11 +77,13 @@ return [
         ],
     ],
 
-    // The symbol shown in front of amounts of money.
+    // The symbol shown in front of amounts of money. An admin can change it
+    // under Settings, Business.
     'currency_symbol' => env('BOWLING_CURRENCY_SYMBOL', 'RM'),
 
     // How long a called walk-in party has to check in at the desk before
-    // they're skipped and the lane goes to the next party.
+    // they're skipped and the lane goes to the next party. An admin can
+    // change it under Settings, Booking rules.
     'waitlist_checkin_minutes' => (int) env('BOWLING_WAITLIST_CHECKIN_MINUTES', 5),
 
 ];

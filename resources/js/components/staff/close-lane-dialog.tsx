@@ -134,6 +134,8 @@ export function CloseLaneDialog({
                                         closed until someone reopens it.{' '}
                                         {lane.current?.isRunning &&
                                             'The party playing on it stays until its session ends. '}
+                                        {lane.state === 'held' &&
+                                            `${lane.current?.customerName ?? 'The party'} was called to this lane and goes back in the line, to be called to the next free lane. `}
                                         {lane.reservationsAhead > 0 &&
                                             `${lane.reservationsAhead} ${lane.reservationsAhead === 1 ? 'reservation' : 'reservations'} booked on this lane may need moving.`}
                                     </p>

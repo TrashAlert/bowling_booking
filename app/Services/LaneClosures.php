@@ -7,14 +7,17 @@ use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
 use App\Enums\LaneClosureReason;
 use App\Enums\LaneStatus;
+use App\Enums\WaitlistStatus;
 use App\Exceptions\InvalidStateException;
 use App\Models\Lane;
 use App\Models\LaneAllocation;
+use App\Models\WaitlistEntry;
 use Carbon\CarbonInterface;
 use Carbon\CarbonInterval;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -23,7 +26,8 @@ use Illuminate\Support\Facades\DB;
  * A short job (re-oiling, maintenance) is a block on the lane for a set
  * number of minutes. It takes the lane like any booking would, so nothing
  * else can be put there, and it ends by itself. A repair marks the lane out
- * of order until staff reopen it; reservations on it then have to be moved.
+ * of order until staff reopen it; reservations on it then have to be moved,
+ * and a party that was called to it goes back in the line.
  */
 class LaneClosures
 {
@@ -80,6 +84,10 @@ class LaneClosures
      * Mark a lane out of order for repair, from now until staff reopen it.
      * $days is only an estimate of when it will be back. A short closure
      * that was under way or coming up on the lane is dropped.
+     *
+     * A party playing on the lane finishes its session. A party that was
+     * only called to it has nowhere to check in, so its hold is dropped and
+     * it goes back in the line where it was, to be called to the next lane.
      */
     public function closeForRepair(Lane $lane, ?int $days = null): Lane
     {
@@ -87,6 +95,10 @@ class LaneClosures
             $lane = Lane::query()->lockForUpdate()->findOrFail($lane->id);
 
             $this->endPending($lane);
+
+            foreach ($this->partiesCalledTo($lane) as $entry) {
+                $this->returnToLine($entry);
+            }
 
             $lane->update([
                 'status' => LaneStatus::OutOfOrder,
@@ -172,6 +184,25 @@ class LaneClosures
     }
 
     /**
+     * The parties that have been called to the lane and not yet seated,
+     * first come first served.
+     *
+     * @return Collection<int, WaitlistEntry>
+     */
+    public function partiesCalledTo(Lane $lane): Collection
+    {
+        return WaitlistEntry::query()
+            ->where('status', WaitlistStatus::Called->value)
+            ->whereHas('booking.allocations', function (Builder $query) use ($lane) {
+                $query->where('lane_id', $lane->id)->where('status', AllocationStatus::Held->value);
+            })
+            ->with('customer')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
      * How many reservations still to come have to be moved off the lane
      * because it is out of order. With an estimate of when the lane will be
      * back, only those before it count.
@@ -203,6 +234,29 @@ class LaneClosures
             ->whereNotNull('closure_reason')
             ->where('ends_at', '>', now())
             ->orderBy('starts_at');
+    }
+
+    /**
+     * Undo a party's call: free every lane held for it and make it a
+     * waiting party again. It keeps the time it joined, so it is still
+     * ahead of everyone who joined after it, and a deposit it paid stays
+     * held as if it had never been called.
+     */
+    private function returnToLine(WaitlistEntry $entry): void
+    {
+        $entry = WaitlistEntry::query()->lockForUpdate()->find($entry->id);
+
+        if ($entry?->status !== WaitlistStatus::Called || $entry->booking?->status !== BookingStatus::Pending) {
+            return;
+        }
+
+        $entry->booking->allocations()
+            ->where('status', AllocationStatus::Held->value)
+            ->update(['status' => AllocationStatus::Released->value]);
+
+        $entry->booking->update(['status' => BookingStatus::Cancelled]);
+
+        $entry->update(['status' => WaitlistStatus::Waiting, 'called_at' => null, 'booking_id' => null]);
     }
 
     /**

@@ -2,11 +2,15 @@
 
 namespace App\Providers;
 
+use App\Services\Branding;
 use App\Services\Payments\DepositPaymentProvider;
+use App\Services\VenueRules;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use InvalidArgumentException;
@@ -45,6 +49,28 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configureTrustedProxies();
+        $this->applySavedRules();
+
+        // The page every screen starts from carries the business name, for
+        // the browser tab's title.
+        View::composer('app', fn ($view) => $view->with('businessName', app(Branding::class)->name()));
+    }
+
+    /**
+     * Use the booking rules an admin saved under Settings in place of their
+     * .env values.
+     *
+     * The app also starts where there is no database to read them from yet:
+     * during installation, and before the first migration. The .env values
+     * simply stay in force then.
+     */
+    protected function applySavedRules(): void
+    {
+        try {
+            app(VenueRules::class)->applySaved();
+        } catch (QueryException) {
+            //
+        }
     }
 
     /**

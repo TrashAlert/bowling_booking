@@ -1,5 +1,8 @@
 import { Head, Link, usePage, usePoll } from '@inertiajs/react';
 import { CalendarClock, Users } from 'lucide-react';
+import BusinessLogo from '@/components/business-logo';
+import ContactDetails from '@/components/contact-details';
+import ThemeToggle from '@/components/theme-toggle';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -170,13 +173,16 @@ export default function Welcome({
 
             <div className="flex min-h-screen flex-col bg-background text-foreground">
                 <header className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4 p-4 sm:p-6">
-                    <span className="truncate font-semibold tracking-tight">
+                    <span className="flex items-center gap-2 truncate font-semibold tracking-tight">
+                        <BusinessLogo className="size-6 shrink-0 rounded" />
                         {name}
                     </span>
+                    <ThemeToggle />
                 </header>
 
                 <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center gap-10 p-4 sm:p-6">
                     <div className="text-center">
+                        <BusinessLogo className="mx-auto mb-4 size-24 rounded-xl" />
                         <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
                             {name}
                         </h1>
@@ -233,8 +239,11 @@ export default function Welcome({
                     </div>
                 </main>
 
-                <footer className="p-4 text-center text-sm text-muted-foreground sm:p-6">
-                    © {new Date().getFullYear()} {name}
+                <footer className="space-y-3 p-4 text-center text-sm text-muted-foreground sm:p-6">
+                    <ContactDetails />
+                    <p>
+                        © {new Date().getFullYear()} {name}
+                    </p>
                 </footer>
             </div>
         </>

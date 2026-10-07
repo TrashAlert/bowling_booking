@@ -11,6 +11,7 @@ use App\Models\Lane;
 use App\Services\LaneClosures;
 use Carbon\CarbonInterval;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -40,10 +41,19 @@ class LaneClosureController extends Controller
             return to_route('staff.board');
         }
 
+        // Whoever was called to the lane goes back in the line when it closes.
+        $returned = $closures->partiesCalledTo($lane)->pluck('customer.name')->all();
+
         $lane = $closures->closeForRepair($lane, $request->integer('days') ?: null);
         $toMove = $closures->reservationsToMove($lane);
 
         $message = __('Lane :number is out of order.', ['number' => $lane->number]);
+
+        if ($returned !== []) {
+            $message .= ' '.trans_choice(':names is back in the line.|:names are back in the line.', count($returned), [
+                'names' => Arr::join($returned, ', ', ' and '),
+            ]);
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => $toMove === 0
             ? $message

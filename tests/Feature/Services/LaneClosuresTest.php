@@ -1,6 +1,8 @@
 <?php
 
 use App\Enums\AllocationStatus;
+use App\Enums\BookingStatus;
+use App\Enums\DepositOutcome;
 use App\Enums\LaneClosureReason;
 use App\Enums\LaneStatus;
 use App\Enums\WaitlistStatus;
@@ -276,6 +278,51 @@ describe('a repair', function () {
             ->and($open->closed_reason)->toBeNull()
             ->and($open->closed_until)->toBeNull()
             ->and(app(LaneClosures::class)->reservationsToMove($open))->toBe(0);
+    });
+
+    test('puts a party that was called to the lane back in the line where it was', function () {
+        $lane = Lane::factory()->create();
+        $entry = joinWaitlistOnline(name: 'Called to the lane');
+        app(WaitlistService::class)->callNextParties();
+        $hold = $entry->refresh()->booking;
+        $later = joinWaitlist(name: 'Joined afterwards');
+
+        app(LaneClosures::class)->closeForRepair($lane);
+
+        expect($entry->refresh()->only(['status', 'called_at', 'booking_id']))->toBe([
+            'status' => WaitlistStatus::Waiting,
+            'called_at' => null,
+            'booking_id' => null,
+        ])->and($entry->position())->toBe(1)
+            ->and($later->position())->toBe(2)
+            ->and($entry->deposit->outcome())->toBe(DepositOutcome::Held);
+        expect($hold->refresh()->status)->toBe(BookingStatus::Cancelled)
+            ->and($hold->allocations()->sole()->status)->toBe(AllocationStatus::Released);
+    });
+
+    test('lets that party be called to the next free lane', function () {
+        $broken = Lane::factory()->create(['number' => 1]);
+        $entry = joinWaitlist();
+        app(WaitlistService::class)->callNextParties();
+        app(LaneClosures::class)->closeForRepair($broken);
+        $other = Lane::factory()->create(['number' => 2]);
+
+        app(WaitlistService::class)->callNextParties();
+
+        expect($entry->refresh()->status)->toBe(WaitlistStatus::Called)
+            ->and($entry->booking->allocations()->sole()->lane_id)->toBe($other->id);
+    });
+
+    test('leaves a party called to another lane alone', function () {
+        [$broken] = Lane::factory()->count(2)->sequence(['number' => 1], ['number' => 2])->create();
+        joinWaitlist(name: 'Called to lane 1');
+        $elsewhere = joinWaitlist(name: 'Called to lane 2');
+        app(WaitlistService::class)->callNextParties();
+
+        app(LaneClosures::class)->closeForRepair($broken);
+
+        expect($elsewhere->refresh()->status)->toBe(WaitlistStatus::Called)
+            ->and($elsewhere->booking->status)->toBe(BookingStatus::Pending);
     });
 });
 

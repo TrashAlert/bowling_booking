@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Services\BookingRequests;
+use App\Services\Branding;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -38,7 +39,9 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
-            'name' => config('app.name'),
+            // The business name ("name") and the address of its logo
+            // ("logoUrl", null when it has none), as set under Settings.
+            ...app(Branding::class)->forPages(),
             'version' => config('bowling.version'),
             'currencySymbol' => config('bowling.currency_symbol'),
             // How many reservation requests are waiting, for the staff sidebar.

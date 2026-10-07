@@ -91,7 +91,7 @@ class WaitlistService
     /**
      * The called party has arrived at the desk: start their session.
      *
-     * @throws InvalidStateException if they weren't called, or their call already expired.
+     * @throws InvalidStateException if they weren't called, their call already expired, or their lane is closed.
      */
     public function seat(WaitlistEntry $entry): WaitlistEntry
     {
@@ -100,6 +100,14 @@ class WaitlistService
 
             if ($entry->status !== WaitlistStatus::Called || $entry->booking?->status !== BookingStatus::Pending) {
                 throw new InvalidStateException('This party is not currently called, or their call has expired.');
+            }
+
+            // Closing a lane for repair puts its called party back in line, so
+            // this only catches a lane closed some other way in the meantime.
+            $closed = $this->bookings->closedLaneNumbers($entry->booking);
+
+            if ($closed !== []) {
+                throw new InvalidStateException('Lane '.implode(', ', $closed).' is closed, so this party can\'t be seated there. Reopen the lane first.');
             }
 
             $entry->booking->allocations()

@@ -9,7 +9,17 @@ declare module 'react' {
 declare module '@inertiajs/core' {
     export interface InertiaConfig {
         sharedPageProps: {
+            // The business name, and the address of its logo (null when it
+            // has none), as set under Settings.
             name: string;
+            logoUrl: string | null;
+            // How customers can reach the business; each is null until an
+            // admin fills it in.
+            contact: {
+                phone: string | null;
+                address: string | null;
+                mapUrl: string | null;
+            };
             version: string;
             // The symbol shown in front of amounts of money, e.g. "RM".
             currencySymbol: string;

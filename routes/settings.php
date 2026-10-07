@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Controllers\Settings\BrandingController;
 use App\Http\Controllers\Settings\DepositController;
 use App\Http\Controllers\Settings\LaneController;
 use App\Http\Controllers\Settings\OpeningHoursController;
 use App\Http\Controllers\Settings\ProfileController;
+use App\Http\Controllers\Settings\RulesController;
 use App\Http\Controllers\Settings\SecurityController;
 use App\Http\Controllers\Settings\UserController;
 use Illuminate\Auth\Middleware\RequirePassword;
@@ -29,11 +31,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 Route::middleware(['auth', 'verified', 'admin'])->group(function () {
+    Route::get('settings/business', [BrandingController::class, 'edit'])->name('branding.edit');
+    // POST, not PUT: a logo upload only arrives intact that way.
+    Route::post('settings/business', [BrandingController::class, 'update'])->name('branding.update');
+
     Route::get('settings/lanes', [LaneController::class, 'edit'])->name('lanes.edit');
     Route::put('settings/lanes', [LaneController::class, 'update'])->name('lanes.update');
 
     Route::get('settings/opening-hours', [OpeningHoursController::class, 'edit'])->name('opening-hours.edit');
     Route::put('settings/opening-hours', [OpeningHoursController::class, 'update'])->name('opening-hours.update');
+
+    Route::get('settings/rules', [RulesController::class, 'edit'])->name('rules.edit');
+    Route::put('settings/rules', [RulesController::class, 'update'])->name('rules.update');
 
     Route::get('settings/deposit', [DepositController::class, 'edit'])->name('deposit.edit');
     Route::put('settings/deposit', [DepositController::class, 'update'])->name('deposit.update');

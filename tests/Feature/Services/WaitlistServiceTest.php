@@ -3,6 +3,7 @@
 use App\Enums\AllocationStatus;
 use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
+use App\Enums\LaneStatus;
 use App\Enums\WaitlistStatus;
 use App\Exceptions\InvalidStateException;
 use App\Models\Lane;
@@ -120,6 +121,20 @@ test('a party that was never called cannot be seated', function () {
         ->toThrow(InvalidStateException::class);
 
     expect($entry->refresh()->status)->toBe(WaitlistStatus::Waiting);
+});
+
+test('a party cannot be seated on a lane that has been closed since it was called', function () {
+    $lane = Lane::factory()->create(['number' => 7]);
+    $entry = joinWaitlist();
+    app(WaitlistService::class)->callNextParties();
+    // Closed behind the waitlist's back: closing for repair itself returns the party to the line.
+    $lane->update(['status' => LaneStatus::OutOfOrder]);
+
+    expect(fn () => app(WaitlistService::class)->seat($entry))
+        ->toThrow(InvalidStateException::class, 'Lane 7 is closed, so this party can\'t be seated there. Reopen the lane first.');
+
+    expect($entry->refresh()->status)->toBe(WaitlistStatus::Called)
+        ->and($entry->booking->status)->toBe(BookingStatus::Pending);
 });
 
 test('a party cannot be seated after its call expires', function () {

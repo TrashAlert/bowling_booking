@@ -3,11 +3,13 @@
 use App\Enums\AllocationStatus;
 use App\Enums\LaneClosureReason;
 use App\Enums\LaneStatus;
+use App\Enums\WaitlistStatus;
 use App\Models\Lane;
 use App\Models\LaneAllocation;
 use App\Models\User;
 use App\Services\BookingService;
 use App\Services\LaneClosures;
+use App\Services\WaitlistService;
 use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(function () {
@@ -108,6 +110,30 @@ describe('closing a lane for repair', function () {
         expect($lane->refresh()->status)->toBe(LaneStatus::OutOfOrder)
             ->and($booking->allocations()->sole()->status)->toBe(AllocationStatus::Active)
             ->and($booking->allocations()->sole()->ends_at->toDateTimeString())->toBe('2026-10-01 19:00:00');
+    });
+
+    test('closing a lane for repair tells staff the party called to it is back in the line', function () {
+        $lane = Lane::factory()->create(['number' => 4]);
+        $entry = joinWaitlist(name: 'Farah');
+        app(WaitlistService::class)->callNextParties();
+
+        $response = $this->actingAs(User::factory()->staff()->create())
+            ->post(route('staff.lanes.closure.store', $lane), ['reason' => 'repair']);
+
+        $response->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Lane 4 is out of order. Farah is back in the line.']);
+        expect($entry->refresh()->status)->toBe(WaitlistStatus::Waiting);
+    });
+
+    test('staff cannot seat a party on a lane that is closed', function () {
+        $lane = Lane::factory()->create(['number' => 4]);
+        $entry = joinWaitlist(name: 'Farah');
+        app(WaitlistService::class)->callNextParties();
+        $lane->update(['status' => LaneStatus::OutOfOrder]);
+
+        $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.seat', $entry));
+
+        $response->assertInertiaFlash('toast', ['type' => 'error', 'message' => 'Lane 4 is closed, so this party can\'t be seated there. Reopen the lane first.']);
+        expect($entry->refresh()->status)->toBe(WaitlistStatus::Called);
     });
 });
 
