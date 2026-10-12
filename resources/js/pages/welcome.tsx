@@ -3,7 +3,6 @@ import { CalendarClock, Users } from 'lucide-react';
 import BusinessLogo from '@/components/business-logo';
 import ContactDetails from '@/components/contact-details';
 import ThemeToggle from '@/components/theme-toggle';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -32,7 +31,6 @@ const actions = [
         description:
             'Walking in? Add your group to the line and we will call you when a lane is ready.',
         action: 'Join the waitlist',
-        badge: 'Trial',
         note: 'A deposit is only needed when every lane is busy.',
         // Said instead while the venue has the deposit turned off.
         noteWithoutDeposit: 'No deposit is needed to join.',
@@ -44,7 +42,6 @@ const actions = [
         description:
             'Planning ahead? Pick a date and time and we will keep a lane for you.',
         action: 'Make a reservation',
-        badge: null,
         note: 'Send us a request and we will call you to confirm.',
         noteWithoutDeposit: null,
         href: reserve(),
@@ -211,11 +208,6 @@ export default function Welcome({
                                     />
                                     <CardTitle className="flex min-h-6 items-center gap-2">
                                         {item.title}
-                                        {item.badge && (
-                                            <Badge variant="secondary">
-                                                {item.badge}
-                                            </Badge>
-                                        )}
                                     </CardTitle>
                                     <CardDescription>
                                         {item.description}
