@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\WaitlistStatus;
 use App\Exceptions\InvalidStateException;
 use App\Exceptions\NoLaneAvailableException;
 use App\Models\WaitlistDeposit;
@@ -95,6 +96,31 @@ class WaitlistDeposits
     public function depositCents(): int
     {
         return $this->settings->depositRequired() ? config('bowling.waitlist_deposit_cents') : 0;
+    }
+
+    /**
+     * How many of the given online joins have a party still in the line,
+     * waiting or called. Used to cap how many one phone can have at once.
+     *
+     * @param  list<int>  $depositIds
+     */
+    public function countInLine(array $depositIds): int
+    {
+        return WaitlistDeposit::query()
+            ->whereKey($depositIds)
+            ->whereHas('entry', fn ($query) => $query->whereIn('status', WaitlistStatus::inLine()))
+            ->count();
+    }
+
+    /**
+     * Whether a phone that made the given online joins has as many groups
+     * in the line as one phone is allowed.
+     *
+     * @param  list<int>  $depositIds
+     */
+    public function deviceLimitReached(array $depositIds): bool
+    {
+        return $this->countInLine($depositIds) >= config('bowling.waitlist_max_per_device');
     }
 
     /**

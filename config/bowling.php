@@ -8,7 +8,7 @@ return [
 
     // The version shown in the staff sidebar. Not read from .env: raise it
     // here with each change that should be tracked.
-    'version' => '0.9.1',
+    'version' => '0.9.2',
 
     // The venue's time zone. Opening hours are clock times in this zone. An
     // admin can change it under Settings, Business.
@@ -80,6 +80,12 @@ return [
     // The symbol shown in front of amounts of money. An admin can change it
     // under Settings, Business.
     'currency_symbol' => env('BOWLING_CURRENCY_SYMBOL', 'RM'),
+
+    // How many groups one phone or browser can have in the online waitlist
+    // at the same time, so one person can't fill the line with made-up
+    // groups. A real group bigger than that asks at the counter. An admin
+    // can change it under Settings, Booking rules.
+    'waitlist_max_per_device' => (int) env('BOWLING_WAITLIST_MAX_PER_DEVICE', 2),
 
     // How long a called walk-in party has to check in at the desk before
     // they're skipped and the lane goes to the next party. An admin can

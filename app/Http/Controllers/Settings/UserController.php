@@ -53,6 +53,9 @@ class UserController extends Controller
 
     /**
      * Change a user's details, role or password.
+     *
+     * An admin saving an account vouches for its email, as when creating
+     * one. That also lets back in a user who was shut out as unconfirmed.
      */
     public function update(UserUpdateRequest $request, User $user): RedirectResponse
     {
@@ -60,6 +63,7 @@ class UserController extends Controller
             'name' => $request->string('name')->toString(),
             'email' => $request->string('email')->toString(),
             'role' => $request->enum('role', UserRole::class),
+            'email_verified_at' => $user->email_verified_at ?? now(),
         ]);
 
         if ($request->filled('password')) {

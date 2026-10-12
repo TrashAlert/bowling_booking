@@ -23,6 +23,7 @@ class VenueRules
     public const EDITABLE = [
         'waitlist_deposit_cents',
         'waitlist_checkin_minutes',
+        'waitlist_max_per_device',
         'no_show_grace_minutes',
         'reservation_lead_minutes',
         'check_in_opens_minutes',

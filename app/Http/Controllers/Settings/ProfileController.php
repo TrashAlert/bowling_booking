@@ -25,16 +25,14 @@ class ProfileController extends Controller
 
     /**
      * Update the user's profile information.
+     *
+     * A new email does not have to be confirmed. Staff accounts are made by
+     * an admin and the venue sends no mail, so asking for confirmation here
+     * would shut the user out of the staff area with no way back in.
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
-
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
-        }
-
-        $request->user()->save();
+        $request->user()->fill($request->validated())->save();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Profile updated.')]);
 

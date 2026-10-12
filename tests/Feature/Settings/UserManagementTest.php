@@ -213,3 +213,14 @@ describe('removing a user', function () {
         $response->assertNotFound();
     });
 });
+
+test('an admin saving a user who was shut out lets them back into the staff area', function () {
+    $lockedOut = User::factory()->staff()->unverified()->create();
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->patch(route('users.update', $lockedOut), ['name' => $lockedOut->name, 'email' => $lockedOut->email, 'role' => 'staff'])
+        ->assertSessionHasNoErrors();
+
+    expect($lockedOut->refresh()->email_verified_at)->not->toBeNull();
+    $this->actingAs($lockedOut)->get(route('staff.board'))->assertOk();
+});

@@ -25,7 +25,7 @@ function joinThroughProxy(string $customerAddress): TestResponse
 test('customers behind a trusted proxy each get their own limit on joining the waitlist', function () {
     config(['app.trusted_proxies' => '10.9.9.9, 127.0.0.1']);
     (new AppServiceProvider($this->app))->boot();
-    foreach (range(1, 10) as $try) {
+    foreach (range(1, 5) as $try) {
         joinThroughProxy('203.0.113.7');
     }
 
@@ -37,7 +37,7 @@ test('customers behind a trusted proxy each get their own limit on joining the w
 });
 
 test('a visitor cannot dodge the limit by naming another address when no proxy is trusted', function () {
-    foreach (range(1, 10) as $try) {
+    foreach (range(1, 5) as $try) {
         joinThroughProxy('203.0.113.7');
     }
 

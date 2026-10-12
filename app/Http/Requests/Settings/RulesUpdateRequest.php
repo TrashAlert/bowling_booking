@@ -22,6 +22,7 @@ class RulesUpdateRequest extends FormRequest
      */
     private const LIMITS = [
         'waitlist_checkin_minutes' => ['min' => 2, 'max' => 60],
+        'waitlist_max_per_device' => ['min' => 1, 'max' => 10],
         'no_show_grace_minutes' => ['min' => 5, 'max' => 120],
         // Zero means a lane takes other parties right up to the start.
         'reservation_lead_minutes' => ['min' => 0, 'max' => 240],
@@ -74,6 +75,7 @@ class RulesUpdateRequest extends FormRequest
     {
         return [
             'waitlist_checkin_minutes' => __('minutes to check in'),
+            'waitlist_max_per_device' => __('groups per phone'),
             'no_show_grace_minutes' => __('no-show grace'),
             'reservation_lead_minutes' => __('lane closing time'),
             'check_in_opens_minutes' => __('check-in opening time'),

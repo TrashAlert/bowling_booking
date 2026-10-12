@@ -19,7 +19,7 @@ Route::get('branding/logo', BrandingLogoController::class)->name('branding.logo'
 // page. The last two are reached by a secret token in the address.
 Route::get('waitlist/join', [WaitlistJoinController::class, 'create'])->name('waitlist.join');
 Route::post('waitlist/join', [WaitlistJoinController::class, 'store'])
-    ->middleware('throttle:10,1')
+    ->middleware('throttle:5,1')
     ->name('waitlist.store');
 
 // Where a payment provider tells us a deposit has been paid. It is not a

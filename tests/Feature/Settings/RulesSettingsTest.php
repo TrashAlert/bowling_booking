@@ -20,6 +20,7 @@ function bookingRules(array $overrides = []): array
 {
     return [
         'waitlist_checkin_minutes' => 5,
+        'waitlist_max_per_device' => 2,
         'no_show_grace_minutes' => 15,
         'reservation_lead_minutes' => 60,
         'check_in_opens_minutes' => 60,
@@ -55,6 +56,7 @@ test('admins see each rule as it is now, and how far it can be changed', functio
         ->component('settings/rules')
         ->where('rules', bookingRules())
         ->where('limits.waitlist_checkin_minutes', ['min' => 2, 'max' => 60])
+        ->where('limits.waitlist_max_per_device', ['min' => 1, 'max' => 10])
         ->where('limits.no_show_grace_minutes', ['min' => 5, 'max' => 120])
         ->where('limits.reservation_lead_minutes', ['min' => 0, 'max' => 240])
         ->where('limits.check_in_opens_minutes', ['min' => 5, 'max' => 240])
@@ -86,6 +88,24 @@ test('admins can change how long a called party has to check in', function () {
     $this->travel(2)->minutes();
     app(WaitlistService::class)->skipExpiredCalls();
     expect($entry->refresh()->status)->toBe(WaitlistStatus::Skipped);
+});
+
+test('admins can change how many groups one phone can have in the online line', function () {
+    Lane::factory()->count(2)->create();
+    $joining = ['name' => 'Farah', 'phone' => '0123456789', 'party_size' => 2, 'minutes' => 60];
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->put(route('rules.update'), bookingRules(['waitlist_max_per_device' => 1]))
+        ->assertSessionHasNoErrors();
+    auth()->logout();
+
+    $first = $this->post(route('waitlist.store'), $joining);
+    $second = $this->withCookie('waitlist_groups', $first->getCookie('waitlist_groups')->getValue())
+        ->post(route('waitlist.store'), $joining);
+
+    $second->assertSessionHasErrors([
+        'limit' => 'This phone already has 1 group in the line. Leave it first, or ask our staff at the counter to add your group.',
+    ]);
 });
 
 test('admins can change how late a reservation can arrive before it is a no-show', function () {
@@ -219,6 +239,9 @@ test('a booking rule that is not acceptable is refused', function (string $rule,
     'minutes to check in that are not a whole number' => ['waitlist_checkin_minutes', '4.5', 'The minutes to check in field must be an integer.'],
     'too few minutes to check in' => ['waitlist_checkin_minutes', 1, 'The minutes to check in field must be at least 2.'],
     'too many minutes to check in' => ['waitlist_checkin_minutes', 61, 'The minutes to check in field must not be greater than 60.'],
+    'no groups per phone' => ['waitlist_max_per_device', '', 'The groups per phone field is required.'],
+    'too few groups per phone' => ['waitlist_max_per_device', 0, 'The groups per phone field must be at least 1.'],
+    'too many groups per phone' => ['waitlist_max_per_device', 11, 'The groups per phone field must not be greater than 10.'],
     'no no-show grace' => ['no_show_grace_minutes', '', 'The no-show grace field is required.'],
     'too short a no-show grace' => ['no_show_grace_minutes', 4, 'The no-show grace field must be at least 5.'],
     'too long a no-show grace' => ['no_show_grace_minutes', 121, 'The no-show grace field must not be greater than 120.'],

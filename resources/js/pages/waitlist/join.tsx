@@ -109,6 +109,7 @@ export default function WaitlistJoin({
     depositCents,
     waitMinutes,
     lanesOpen,
+    deviceLimit,
     opening,
 }: {
     session: SessionRules;
@@ -119,6 +120,9 @@ export default function WaitlistJoin({
     waitMinutes: Record<string, number | null>;
     // False while every lane is out of order, when nobody can join.
     lanesOpen: boolean;
+    // How many groups one phone may have in the line at once, and whether
+    // this phone already has that many.
+    deviceLimit: { max: number; reached: boolean };
     // Joining is only possible while the venue is open.
     opening: OpeningStatus;
 }) {
@@ -133,7 +137,7 @@ export default function WaitlistJoin({
     const noLane = !lanesOpen || waitMinutes[minutes] === null;
 
     usePoll(POLL_INTERVAL_MS, {
-        only: ['waitMinutes', 'lanesOpen', 'opening'],
+        only: ['waitMinutes', 'lanesOpen', 'deviceLimit', 'opening'],
     });
 
     if (!opening.isOpen) {
@@ -264,12 +268,39 @@ export default function WaitlistJoin({
                                     </div>
                                 )}
 
-                                <InputError message={errors.closed} />
+                                {deviceLimit.reached && (
+                                    <div className="rounded-lg border p-3 text-sm">
+                                        <p className="font-medium">
+                                            This phone already has{' '}
+                                            {deviceLimit.max}{' '}
+                                            {deviceLimit.max === 1
+                                                ? 'group'
+                                                : 'groups'}{' '}
+                                            in the line
+                                        </p>
+                                        <p className="mt-1 text-muted-foreground">
+                                            Leave{' '}
+                                            {deviceLimit.max === 1
+                                                ? 'it'
+                                                : 'one of them'}{' '}
+                                            first, or ask our staff at the
+                                            counter to add your group.
+                                        </p>
+                                    </div>
+                                )}
+
+                                <InputError
+                                    message={errors.closed ?? errors.limit}
+                                />
 
                                 <Button
                                     type="submit"
                                     className="w-full"
-                                    disabled={processing || noLane}
+                                    disabled={
+                                        processing ||
+                                        noLane ||
+                                        deviceLimit.reached
+                                    }
                                 >
                                     {laneIsFree || noLane || !depositAsked
                                         ? 'Join the waitlist'

@@ -10,6 +10,7 @@ import { edit } from '@/routes/rules';
 // The rules on this page, by their name on the server.
 type Rule =
     | 'waitlist_checkin_minutes'
+    | 'waitlist_max_per_device'
     | 'no_show_grace_minutes'
     | 'reservation_lead_minutes'
     | 'check_in_opens_minutes'
@@ -107,6 +108,16 @@ export default function Rules({
                                 value={rules.waitlist_checkin_minutes}
                                 limits={limits.waitlist_checkin_minutes}
                                 error={errors.waitlist_checkin_minutes}
+                            />
+
+                            <NumberRule
+                                rule="waitlist_max_per_device"
+                                label="Groups one phone can have in the online line"
+                                unit="at the same time"
+                                help="Stops one person filling the waitlist with made-up groups. A phone that has this many groups waiting or called can't add another until one has played or left. Walk-ins added at the counter are not counted."
+                                value={rules.waitlist_max_per_device}
+                                limits={limits.waitlist_max_per_device}
+                                error={errors.waitlist_max_per_device}
                             />
 
                             <NumberRule

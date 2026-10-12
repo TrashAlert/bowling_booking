@@ -4,7 +4,9 @@ use App\Enums\WaitlistStatus;
 use App\Models\Lane;
 use App\Models\WaitlistDeposit;
 use App\Models\WaitlistEntry;
+use App\Services\WaitlistService;
 use App\Services\WaitlistSettings;
+use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
 
 /**
@@ -22,6 +24,19 @@ function joinForm(array $overrides = []): array
         'minutes' => 90,
         ...$overrides,
     ];
+}
+
+/**
+ * Join the waitlist from the phone that made the earlier join, by sending
+ * back the cookie that join handed it.
+ *
+ * @param  array<string, mixed>  $overrides
+ */
+function joinFromSamePhone(TestResponse $earlier, array $overrides = []): TestResponse
+{
+    return test()
+        ->withCookie('waitlist_groups', $earlier->getCookie('waitlist_groups')->getValue())
+        ->post(route('waitlist.store'), joinForm($overrides));
 }
 
 test('anyone can open the waitlist page without logging in', function () {
@@ -209,14 +224,87 @@ test('a session length that is not offered is refused', function () {
     $this->assertDatabaseCount('waitlist_deposits', 0);
 });
 
-test('joining is refused after ten tries in a minute', function () {
+test('joining is refused after five tries in a minute', function () {
     laneInPlay();
-    foreach (range(1, 10) as $try) {
+    foreach (range(1, 5) as $try) {
         $this->post(route('waitlist.store'), joinForm());
     }
 
     $response = $this->post(route('waitlist.store'), joinForm());
 
     $response->assertTooManyRequests();
-    $this->assertDatabaseCount('waitlist_deposits', 10);
+    $this->assertDatabaseCount('waitlist_deposits', 5);
+});
+
+test('one phone can only have two groups in the line at once', function () {
+    Lane::factory()->count(3)->create();
+    $first = $this->post(route('waitlist.store'), joinForm(['name' => 'First group']));
+    $second = joinFromSamePhone($first, ['name' => 'Second group']);
+
+    $third = joinFromSamePhone($second, ['name' => 'Third group']);
+
+    $third->assertSessionHasErrors([
+        'limit' => 'This phone already has 2 groups in the line. Leave one of them first, or ask our staff at the counter to add your group.',
+    ]);
+    $this->assertDatabaseCount('waitlist_entries', 2);
+    $this->assertDatabaseMissing('customers', ['name' => 'Third group']);
+});
+
+test('a phone can join again once one of its groups has left the line', function () {
+    Lane::factory()->count(3)->create();
+    $first = $this->post(route('waitlist.store'), joinForm(['name' => 'First group']));
+    $second = joinFromSamePhone($first, ['name' => 'Second group']);
+    app(WaitlistService::class)->leave(WaitlistEntry::query()->oldest('id')->first());
+
+    $third = joinFromSamePhone($second, ['name' => 'Third group']);
+
+    $third->assertSessionHasNoErrors();
+    $this->assertDatabaseHas('customers', ['name' => 'Third group']);
+});
+
+test('another phone is not held back by the first one\'s groups', function () {
+    Lane::factory()->count(3)->create();
+    $first = $this->post(route('waitlist.store'), joinForm());
+    joinFromSamePhone($first);
+    // A phone that has never joined sends no cookie.
+    $this->defaultCookies = [];
+
+    $response = $this->post(route('waitlist.store'), joinForm(['name' => 'Someone else']));
+
+    $response->assertSessionHasNoErrors();
+    $this->assertDatabaseCount('waitlist_entries', 3);
+});
+
+test('a deposit that was never paid does not count against a phone', function () {
+    laneInPlay();
+    $first = $this->post(route('waitlist.store'), joinForm());
+    $second = joinFromSamePhone($first);
+
+    $third = joinFromSamePhone($second);
+
+    $third->assertSessionHasNoErrors();
+    $this->assertDatabaseCount('waitlist_deposits', 3);
+    $this->assertDatabaseCount('waitlist_entries', 0);
+});
+
+test('the waitlist page tells a phone when it has reached its limit', function () {
+    Lane::factory()->count(3)->create();
+    $this->get(route('waitlist.join'))
+        ->assertInertia(fn (Assert $page) => $page->where('deviceLimit', ['max' => 2, 'reached' => false]));
+    $first = $this->post(route('waitlist.store'), joinForm());
+    $second = joinFromSamePhone($first);
+
+    $response = $this->withCookie('waitlist_groups', $second->getCookie('waitlist_groups')->getValue())
+        ->get(route('waitlist.join'));
+
+    $response->assertInertia(fn (Assert $page) => $page->where('deviceLimit', ['max' => 2, 'reached' => true]));
+});
+
+test('a cookie that is not the one we handed out counts for nothing', function () {
+    Lane::factory()->count(3)->create();
+
+    $response = $this->withCookie('waitlist_groups', 'not a list')->post(route('waitlist.store'), joinForm());
+
+    $response->assertSessionHasNoErrors();
+    $this->assertDatabaseCount('waitlist_entries', 1);
 });
