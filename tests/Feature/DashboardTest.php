@@ -21,6 +21,7 @@ test('a user without a role is told nothing about the venue', function () {
 
     $response->assertInertia(fn (Assert $page) => $page
         ->component('dashboard')
+        ->where('rightNow', null)
         ->where('attention', null)
         ->where('analytics', null));
 });
@@ -30,6 +31,7 @@ test('staff see what needs attention and the last seven days of analytics', func
 
     $response->assertInertia(fn (Assert $page) => $page
         ->component('dashboard')
+        ->has('rightNow.lanes')
         ->where('attention', [
             'reservationsToMove' => [],
             'lateReservations' => [],
@@ -50,6 +52,34 @@ test('the analytics cover the days asked for, or seven when that is not on offer
     'thirty days' => ['30', 30],
     'a length not on offer' => ['5', 7],
     'not a number' => ['all', 7],
+]);
+
+test('the analytics cover the first to the last day chosen', function (string $from, string $to, int $days) {
+    $this->travelTo(venueTime('2026-10-15 14:00'));
+
+    $response = $this->actingAs(User::factory()->staff()->create())->get(route('dashboard', ['from' => $from, 'to' => $to]));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('analytics.days', $days)
+        ->where('analytics.firstDay', $from)
+        ->where('analytics.lastDay', $to)
+        ->where('customRange', ['from' => $from, 'to' => $to]));
+})->with([
+    'a month' => ['2026-09-01', '2026-09-30', 30],
+    'a whole year, the most allowed' => ['2025-10-15', '2026-10-15', 366],
+]);
+
+test('a span of days that cannot be used is turned away with the reason', function (array $span, string $field, string $message) {
+    $this->travelTo(venueTime('2026-10-15 14:00'));
+
+    $response = $this->actingAs(User::factory()->staff()->create())->get(route('dashboard', $span));
+
+    $response->assertSessionHasErrors([$field => $message]);
+})->with([
+    'a last day after today' => [['from' => '2026-10-10', 'to' => '2026-10-16'], 'to', 'The last day can\'t be after today.'],
+    'a first day after the last' => [['from' => '2026-10-10', 'to' => '2026-10-01'], 'from', 'The first day must be on or before the last day.'],
+    'more than a year' => [['from' => '2025-10-14', 'to' => '2026-10-15'], 'from', 'Pick at most 366 days.'],
+    'only a first day' => [['from' => '2026-10-01'], 'to', 'Pick the last day as well.'],
 ]);
 
 test('the app version is shared with every page', function () {

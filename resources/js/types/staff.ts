@@ -201,6 +201,27 @@ export type ReservationLimits = {
     searchLimit: number;
 };
 
+// What the lanes and the line are doing at this moment, counted as the lane
+// board shows them. Times are ISO 8601 strings in UTC.
+export type DashboardRightNow = {
+    lanes: {
+        total: number;
+        free: number;
+        inPlay: number;
+        // Held for a called walk-in on its way, or a reservation that has
+        // started without checking in.
+        heldForParty: number;
+        outOfOrder: number;
+        // Closed for re-oiling or maintenance.
+        maintenance: number;
+        // Kept empty for a reservation about to start.
+        keptClear: number;
+    };
+    // When the first of the sessions in play ends; null when nobody plays.
+    nextSessionEndsAt: string | null;
+    line: { waiting: number; called: number };
+};
+
 // What staff have to deal with now, as the dashboard lists it. Every time is
 // an ISO 8601 string in UTC.
 export type DashboardAttention = {
@@ -237,6 +258,9 @@ export type DashboardAttention = {
 // and hours are the venue's own, whatever the device's time zone.
 export type DashboardAnalytics = {
     days: number;
+    // The first and last day covered ("2026-10-05"), both included.
+    firstDay: string;
+    lastDay: string;
     // Parties that checked in, by how they came.
     sessions: { walkIns: number; reservations: number };
     people: number;
@@ -259,4 +283,18 @@ export type DashboardAnalytics = {
     // Sessions by the hour they started (0 to 23), from the earliest hour
     // with any to the latest. Empty when there were none.
     byHour: { hour: number; sessions: number }[];
+    // The busiest times: each day of the week (0 is Sunday), Monday first,
+    // with how many sessions started in each hour byHour lists, and how many
+    // of that weekday the days hold. Empty when there were no sessions.
+    byWeekday: { weekday: number; days: number; sessions: number[] }[];
+    // How long each lane was out of use in those days, up to now, lowest
+    // number first. Lanes never closed then are left out.
+    closedTime: {
+        number: number;
+        repairMinutes: number;
+        // Closed for a short job: re-oiling or maintenance.
+        workMinutes: number;
+    }[];
+    // When the app began logging repairs; ones before it are not counted.
+    repairsRecordedSince: string;
 };

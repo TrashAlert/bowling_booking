@@ -6,6 +6,7 @@ use App\Exceptions\InvalidStateException;
 use App\Models\Lane;
 use App\Models\LaneAllocation;
 use App\Services\LaneAvailability;
+use App\Services\LaneClosures;
 use App\Services\LaneInventory;
 
 beforeEach(function () {
@@ -91,6 +92,17 @@ test('a lane with only past or released bookings is removed and keeps its histor
 
     $this->assertSoftDeleted($lane);
     expect($past->refresh()->lane->number)->toBe(2);
+});
+
+test('removing a lane under repair ends its repair in the log', function () {
+    Lane::factory()->create(['number' => 1]);
+    $lane = Lane::factory()->create(['number' => 2]);
+    app(LaneClosures::class)->closeForRepair($lane);
+    $this->travel(1)->hours();
+
+    app(LaneInventory::class)->resize(1);
+
+    expect($lane->repairs()->sole()->ended_at->toDateTimeString())->toBe('2026-10-01 19:00:00');
 });
 
 test('a removed lane comes back as the same lane and open', function () {

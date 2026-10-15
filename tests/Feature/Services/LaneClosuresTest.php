@@ -10,6 +10,7 @@ use App\Exceptions\InvalidStateException;
 use App\Exceptions\NoLaneAvailableException;
 use App\Models\Lane;
 use App\Models\LaneAllocation;
+use App\Models\LaneRepair;
 use App\Services\BookingService;
 use App\Services\LaneAvailability;
 use App\Services\LaneBoard;
@@ -265,6 +266,29 @@ describe('a repair', function () {
 
         expect($before)->toBe(0)
             ->and($after)->toBe(1);
+    });
+
+    test('is logged from when the lane closes until it is reopened', function () {
+        $lane = Lane::factory()->create();
+        app(LaneClosures::class)->closeForRepair($lane, 2);
+        $this->travel(2)->hours();
+
+        app(LaneClosures::class)->reopen($lane);
+
+        expect($lane->repairs()->get(['started_at', 'ended_at'])->map(fn (LaneRepair $repair) => [
+            $repair->started_at->toDateTimeString(),
+            $repair->ended_at?->toDateTimeString(),
+        ])->all())->toBe([['2026-10-01 18:00:00', '2026-10-01 20:00:00']]);
+    });
+
+    test('stays one repair in the log when the lane is closed again with a new estimate', function () {
+        $lane = Lane::factory()->create();
+        app(LaneClosures::class)->closeForRepair($lane, 1);
+        $this->travel(1)->hours();
+
+        app(LaneClosures::class)->closeForRepair($lane, 3);
+
+        expect($lane->repairs()->ongoing()->sole()->started_at->toDateTimeString())->toBe('2026-10-01 18:00:00');
     });
 
     test('is cleared when the lane is reopened', function () {

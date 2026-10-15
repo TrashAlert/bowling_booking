@@ -88,6 +88,9 @@ class LaneClosures
      * A party playing on the lane finishes its session. A party that was
      * only called to it has nowhere to check in, so its hold is dropped and
      * it goes back in the line where it was, to be called to the next lane.
+     *
+     * The repair is logged from now. A lane already out of order keeps the
+     * repair it has, with the new estimate.
      */
     public function closeForRepair(Lane $lane, ?int $days = null): Lane
     {
@@ -98,6 +101,10 @@ class LaneClosures
 
             foreach ($this->partiesCalledTo($lane) as $entry) {
                 $this->returnToLine($entry);
+            }
+
+            if (! $lane->repairs()->ongoing()->exists()) {
+                $lane->repairs()->create(['started_at' => now()->startOfSecond()]);
             }
 
             $lane->update([
@@ -143,8 +150,8 @@ class LaneClosures
     }
 
     /**
-     * Open a lane again: clears a repair, and ends a short closure that is
-     * under way or cancels one that hasn't started.
+     * Open a lane again: clears a repair and ends it in the log, and ends a
+     * short closure that is under way or cancels one that hasn't started.
      */
     public function reopen(Lane $lane): Lane
     {
@@ -152,6 +159,8 @@ class LaneClosures
             $lane = Lane::query()->lockForUpdate()->findOrFail($lane->id);
 
             $this->endPending($lane);
+
+            $lane->repairs()->ongoing()->update(['ended_at' => now()->startOfSecond()]);
 
             $lane->update([
                 'status' => LaneStatus::Open,

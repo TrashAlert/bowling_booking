@@ -31,6 +31,33 @@ export function formatShortDate(iso: string): string {
     return shortDateFormat.format(new Date(iso));
 }
 
+/**
+ * Show a calendar date ("2026-10-05") in brief with its year, e.g. "Mon, 5
+ * Oct 2026".
+ */
+export function formatShortCalendarDate(date: string): string {
+    return shortDateFormat.format(new Date(`${date}T12:00`));
+}
+
+const monthFormat = new Intl.DateTimeFormat(undefined, {
+    month: 'long',
+    year: 'numeric',
+});
+
+const shortMonthFormat = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+});
+
+/**
+ * Name the month a calendar date ("2026-10-05") falls in, e.g. "October
+ * 2026", or "Oct" in brief.
+ */
+export function formatMonth(date: string, brief = false): string {
+    return (brief ? shortMonthFormat : monthFormat).format(
+        new Date(`${date}T12:00`),
+    );
+}
+
 const dayFormat = new Intl.DateTimeFormat(undefined, { weekday: 'long' });
 
 /**
@@ -56,6 +83,20 @@ const dayMonthFormat = new Intl.DateTimeFormat(undefined, {
 export function formatDateTick(date: string, withinAWeek: boolean): string {
     return (withinAWeek ? weekdayFormat : dayMonthFormat).format(
         new Date(`${date}T12:00`),
+    );
+}
+
+const longWeekdayFormat = new Intl.DateTimeFormat(undefined, {
+    weekday: 'long',
+});
+
+/**
+ * Name a day of the week (0 is Sunday), e.g. "Mon", or "Monday" in full.
+ */
+export function formatWeekday(weekday: number, long = false): string {
+    // 4 October 2026 was a Sunday.
+    return (long ? longWeekdayFormat : weekdayFormat).format(
+        new Date(2026, 9, 4 + weekday, 12),
     );
 }
 
@@ -98,6 +139,21 @@ export function formatMinutes(milliseconds: number): string {
     return rest === 0
         ? `${Math.floor(minutes / 60)} h`
         : `${Math.floor(minutes / 60)} h ${rest} min`;
+}
+
+/**
+ * A stretch of time that may run to days, from its length in minutes, e.g.
+ * "45 min", "5 h 30 min" or "2 d 4 h".
+ */
+export function formatDuration(minutes: number): string {
+    if (minutes < 24 * 60) {
+        return formatMinutes(minutes * 60_000);
+    }
+
+    const days = Math.floor(minutes / (24 * 60));
+    const hours = Math.floor((minutes % (24 * 60)) / 60);
+
+    return hours === 0 ? `${days} d` : `${days} d ${hours} h`;
 }
 
 /**

@@ -36,6 +36,13 @@ class Lane extends Model
         return $this->hasMany(LaneAllocation::class);
     }
 
+    // Every time the lane has been out of order for repair, from when the
+    // log began.
+    public function repairs(): HasMany
+    {
+        return $this->hasMany(LaneRepair::class);
+    }
+
     public function isOpen(): bool
     {
         return $this->status === LaneStatus::Open;

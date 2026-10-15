@@ -51,6 +51,11 @@
     --color-chart-4: var(--chart-4);
     --color-chart-5: var(--chart-5);
 
+    --color-heat-1: var(--heat-1);
+    --color-heat-2: var(--heat-2);
+    --color-heat-3: var(--heat-3);
+    --color-heat-4: var(--heat-4);
+
     --color-sidebar: var(--sidebar);
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar-primary: var(--sidebar-primary);
@@ -86,6 +91,13 @@
        this surface, so change them together, here and under .dark. */
     --chart-1: #2a78d6;
     --chart-2: #eb6834;
+    /* The busiest-times grid, from fewest to most. One blue, lighter to
+       darker here and darker to lighter under .dark, each step checked to
+       stand apart from the next. */
+    --heat-1: #86b6ef;
+    --heat-2: #5598e7;
+    --heat-3: #256abf;
+    --heat-4: #104281;
     --chart-3: oklch(0.398 0.07 227.392);
     --chart-4: oklch(0.828 0.189 84.429);
     --chart-5: oklch(0.769 0.188 70.08);
@@ -122,6 +134,10 @@
     --ring: oklch(0.439 0 0);
     --chart-1: #3987e5;
     --chart-2: #d95926;
+    --heat-1: #184f95;
+    --heat-2: #256abf;
+    --heat-3: #3987e5;
+    --heat-4: #86b6ef;
     --chart-3: oklch(0.769 0.188 70.08);
     --chart-4: oklch(0.627 0.265 303.9);
     --chart-5: oklch(0.645 0.246 16.439);

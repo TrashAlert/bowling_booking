@@ -1,7 +1,9 @@
 <?php
 
+use App\Enums\LaneClosureReason;
 use App\Models\BookingRequest;
 use App\Models\Lane;
+use App\Models\LaneRepair;
 use App\Services\BookingCleanup;
 use App\Services\BookingService;
 use App\Services\LaneClosures;
@@ -160,3 +162,85 @@ test('only the days asked for are counted', function (int $days, int $sessions) 
     'the last seven days' => [7, 0],
     'the last thirty days' => [30, 1],
 ]);
+
+test('the busiest times count the sessions of each weekday and hour, and how many of each weekday the days hold', function () {
+    $this->travelTo(venueTime('2026-10-03 19:00'));
+    laneInPlay();
+    $this->travelTo(venueTime('2026-10-10 19:00'));
+    laneInPlay();
+    $this->travelTo(venueTime('2026-10-10 20:00'));
+    laneInPlay();
+    $this->travelTo(venueTime('2026-10-14 14:00'));
+
+    $byWeekday = app(StaffDashboard::class)->analytics(30)['byWeekday'];
+
+    // From Tuesday 15 September: four Saturdays and five Wednesdays.
+    expect(array_column($byWeekday, 'weekday'))->toBe([1, 2, 3, 4, 5, 6, 0])
+        ->and($byWeekday[5])->toBe(['weekday' => 6, 'days' => 4, 'sessions' => [2, 1]])
+        ->and($byWeekday[2])->toBe(['weekday' => 3, 'days' => 5, 'sessions' => [0, 0]]);
+});
+
+test('time out of order adds up each lane\'s repairs and short jobs within the days covered and up to now', function () {
+    $this->travelTo(venueTime('2026-10-07 12:00'));
+    $longRepair = Lane::factory()->create(['number' => 2]);
+    // A repair that began before the seven days is only counted from their start.
+    LaneRepair::factory()->for($longRepair)->create(['started_at' => venueTime('2026-09-29 00:00')->utc(), 'ended_at' => venueTime('2026-10-02 00:00')->utc()]);
+    LaneRepair::factory()->for($longRepair)->create(['started_at' => venueTime('2026-10-05 10:00')->utc(), 'ended_at' => venueTime('2026-10-06 10:00')->utc()]);
+    app(LaneClosures::class)->closeForRepair(Lane::factory()->create(['number' => 5]));
+    Lane::factory()->create(['number' => 6]);
+    $this->travelTo(venueTime('2026-10-07 13:00'));
+    app(LaneClosures::class)->closeForWork(Lane::factory()->create(['number' => 7]), LaneClosureReason::ReOil, 30);
+    $this->travelTo(venueTime('2026-10-07 14:00'));
+
+    $closedTime = app(StaffDashboard::class)->analytics(7)['closedTime'];
+
+    expect($closedTime)->toBe([
+        ['number' => 2, 'repairMinutes' => 2880, 'workMinutes' => 0],
+        ['number' => 5, 'repairMinutes' => 120, 'workMinutes' => 0],
+        ['number' => 7, 'repairMinutes' => 0, 'workMinutes' => 30],
+    ]);
+});
+
+test('right now counts the lanes by what they are doing, and the groups in line', function () {
+    $this->travelTo(venueTime('2026-10-07 14:00'));
+    laneInPlay();
+    Lane::factory()->create(['number' => 2]);
+    joinWaitlist(name: 'Called to lane 2');
+    app(WaitlistService::class)->callNextParties();
+    joinWaitlist(name: 'Still waiting');
+    Lane::factory()->create(['number' => 3]);
+    Lane::factory()->outOfOrder()->create(['number' => 4]);
+    app(LaneClosures::class)->closeForWork(Lane::factory()->create(['number' => 5]), LaneClosureReason::ReOil, 30);
+    reserveLanes(Lane::factory()->create(['number' => 6]), venueTime('2026-10-07 14:30'));
+
+    $rightNow = app(StaffDashboard::class)->rightNow();
+
+    expect($rightNow)->toBe([
+        'lanes' => [
+            'total' => 6,
+            'free' => 1,
+            'inPlay' => 1,
+            'heldForParty' => 1,
+            'outOfOrder' => 1,
+            'maintenance' => 1,
+            'keptClear' => 1,
+        ],
+        'nextSessionEndsAt' => '2026-10-07T07:00:00+00:00',
+        'line' => ['waiting' => 1, 'called' => 1],
+    ]);
+});
+
+test('a chosen span counts only the days from its first to its last', function () {
+    foreach (['2026-08-31 14:00', '2026-09-15 14:00', '2026-10-01 14:00'] as $moment) {
+        $this->travelTo(venueTime($moment));
+        laneInPlay();
+    }
+    $this->travelTo(venueTime('2026-10-15 14:00'));
+
+    $analytics = app(StaffDashboard::class)->analyticsBetween('2026-09-01', '2026-09-30');
+
+    expect($analytics['sessions']['reservations'])->toBe(1)
+        ->and($analytics['days'])->toBe(30)
+        ->and($analytics['byDay'][0]['date'])->toBe('2026-09-01')
+        ->and($analytics['byDay'][29]['date'])->toBe('2026-09-30');
+});

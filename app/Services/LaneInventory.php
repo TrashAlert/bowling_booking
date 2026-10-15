@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\LaneStatus;
 use App\Exceptions\InvalidStateException;
 use App\Models\Lane;
+use App\Models\LaneRepair;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,8 @@ class LaneInventory
      *
      * Lanes above $count are removed, highest numbers first in effect. They
      * are only hidden, not deleted, so their past bookings stay intact, and
-     * a lane that comes back later is the same lane again.
+     * a lane that comes back later is the same lane again. A repair going on
+     * on a removed lane ends then, since the lane is out of use.
      *
      * @throws InvalidStateException when a lane to remove is in use or has bookings coming up.
      */
@@ -46,6 +48,11 @@ class LaneInventory
                     ['lanes' => Arr::join($busy->all(), ', ', ' and ')],
                 ));
             }
+
+            LaneRepair::query()
+                ->ongoing()
+                ->whereHas('lane', fn (Builder $query) => $query->where('number', '>', $count))
+                ->update(['ended_at' => now()->startOfSecond()]);
 
             Lane::query()->where('number', '>', $count)->delete();
 
