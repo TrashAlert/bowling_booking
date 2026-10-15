@@ -8,7 +8,7 @@ return [
 
     // The version shown in the staff sidebar. Not read from .env: raise it
     // here with each change that should be tracked.
-    'version' => '1.0.0',
+    'version' => '1.1.0',
 
     // The venue's time zone. Opening hours are clock times in this zone. An
     // admin can change it under Settings, Business.

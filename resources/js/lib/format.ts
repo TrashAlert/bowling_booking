@@ -41,6 +41,34 @@ export function formatDay(iso: string): string {
     return dayFormat.format(new Date(iso));
 }
 
+const weekdayFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
+
+const dayMonthFormat = new Intl.DateTimeFormat(undefined, {
+    day: 'numeric',
+    month: 'short',
+});
+
+/**
+ * Show a calendar date ("2026-10-05") as briefly as a chart needs under a
+ * column: its weekday ("Mon"), or its day and month ("5 Oct") where the
+ * chart covers more than a week.
+ */
+export function formatDateTick(date: string, withinAWeek: boolean): string {
+    return (withinAWeek ? weekdayFormat : dayMonthFormat).format(
+        new Date(`${date}T12:00`),
+    );
+}
+
+const hourFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric' });
+
+/**
+ * Show an hour of the day (0 to 23) the way the viewer's device writes
+ * times, e.g. "7 PM".
+ */
+export function formatHour(hour: number): string {
+    return hourFormat.format(new Date(2000, 0, 1, hour));
+}
+
 /**
  * Show a time of day ("19:30") the way the viewer's device writes times.
  */

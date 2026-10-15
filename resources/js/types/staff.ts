@@ -200,3 +200,63 @@ export type ReservationLimits = {
     // The most reservations a search lists.
     searchLimit: number;
 };
+
+// What staff have to deal with now, as the dashboard lists it. Every time is
+// an ISO 8601 string in UTC.
+export type DashboardAttention = {
+    // Reservations still to check in with a lane out of order, soonest first.
+    reservationsToMove: {
+        id: number;
+        customerName: string;
+        startsAt: string;
+        closedLaneNumbers: number[];
+    }[];
+    // Reservations that have started with nobody checked in. Each becomes a
+    // no-show at noShowAt.
+    lateReservations: {
+        id: number;
+        customerName: string;
+        startsAt: string;
+        noShowAt: string;
+        laneNumbers: number[];
+    }[];
+    // Reservation requests waiting, and how many of them it is a good time
+    // to call about.
+    requests: { waiting: number; callNow: number };
+    // Lanes out of order. The date is only an estimate; overdue once it has
+    // passed with the lane still closed.
+    closedLanes: {
+        number: number;
+        reason: LaneClosureReason | null;
+        until: string | null;
+        overdue: boolean;
+    }[];
+};
+
+// How the venue has done over the last so many days, today included. Days
+// and hours are the venue's own, whatever the device's time zone.
+export type DashboardAnalytics = {
+    days: number;
+    // Parties that checked in, by how they came.
+    sessions: { walkIns: number; reservations: number };
+    people: number;
+    // Time on the lanes, all sessions and lanes together.
+    laneMinutes: number;
+    noShows: number;
+    // Reservations for those days that were cancelled.
+    cancelled: number;
+    // The groups that joined the line in those days.
+    waitlist: {
+        joined: number;
+        joinedOnline: number;
+        missedCalls: number;
+        left: number;
+        // From joining to being called; null when nobody was called.
+        averageWaitMinutes: number | null;
+    };
+    // One row per day ("2026-10-05"), oldest first.
+    byDay: { date: string; walkIns: number; reservations: number }[];
+    // Sessions by the hour they started (0 to 23), from the earliest hour
+    // with any to the latest. Empty when there were none.
+    byHour: { hour: number; sessions: number }[];
+};
