@@ -34,6 +34,7 @@ test('a waiting party sees its place in line and nothing about anyone else', fun
             'sessionEndsAt' => null,
             'deposit' => ['amountCents' => 1000, 'outcome' => 'held'],
             'pushOn' => false,
+            'passedOver' => false,
         ])
         ->where('checkInMinutes', 5)
         ->where('serverNow', '2026-10-01T18:01:00+00:00'));
@@ -54,6 +55,34 @@ test('a waiting party sees how long it is likely to wait', function () {
     $response->assertInertia(fn (Assert $page) => $page
         ->where('ticket.status', 'waiting')
         ->where('ticket.estimatedWaitMinutes', 90));
+});
+
+test('a waiting party is told when a group behind it went first, and keeps its place', function () {
+    // The lane is kept clear from 18:30 for a reservation at 19:30.
+    reserveLanes(Lane::factory()->create(), now()->addMinutes(90));
+    $entry = joinWaitlist(minutes: 120, name: 'Wants two hours');
+    joinWaitlist(minutes: 30, name: 'Wants half an hour');
+    app(WaitlistService::class)->callNextParties();
+
+    $response = $this->get(route('waitlist.show', ['entry' => $entry->token]));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('ticket.position', 1)
+        ->where('ticket.partiesAhead', 0)
+        ->where('ticket.passedOver', true));
+});
+
+test('a group ahead being called in turn is not counted as going first', function () {
+    Lane::factory()->create();
+    joinWaitlist(name: 'Party ahead');
+    $entry = joinWaitlist();
+    app(WaitlistService::class)->callNextParties();
+
+    $response = $this->get(route('waitlist.show', ['entry' => $entry->token]));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('ticket.status', 'waiting')
+        ->where('ticket.passedOver', false));
 });
 
 test('a called party sees its lane and when it must check in by', function () {

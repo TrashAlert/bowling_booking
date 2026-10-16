@@ -124,6 +124,7 @@ test('a request is refused when a detail is not acceptable', function (array $ov
     $this->assertDatabaseCount('booking_requests', 0);
 })->with([
     'a phone number with a symbol' => [['phone' => '012-3456789'], 'phone', 'The phone number can only contain digits, with no spaces, letters or symbols.'],
+    'a phone number shorter than ten digits' => [['phone' => '012345678'], 'phone', 'The phone number must have at least 10 digits.'],
     'a start in the past' => [['starts_at' => '2026-10-05T03:30:00.000Z'], 'starts_at', 'The start time can\'t be in the past.'],
     'a start too far ahead' => [['starts_at' => '2027-02-01T11:00:00.000Z'], 'starts_at', 'Reservations can be made up to 90 days ahead.'],
     'a start off the half hour' => [['starts_at' => '2026-10-06T11:10:00.000Z'], 'starts_at', 'The start time must be on the hour or half hour.'],

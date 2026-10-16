@@ -88,6 +88,20 @@ describe('adding a walk-in', function () {
         $this->assertDatabaseCount('waitlist_entries', 0);
     });
 
+    test('a phone number shorter than ten digits is refused', function () {
+        $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.store'), [
+            'name' => 'Farah',
+            'phone' => '012345678',
+            'party_size' => 2,
+            'minutes' => 60,
+        ]);
+
+        $response->assertSessionHasErrors([
+            'phone' => 'The phone number must have at least 10 digits.',
+        ]);
+        $this->assertDatabaseCount('waitlist_entries', 0);
+    });
+
     test('the name, party size and session length are required', function () {
         $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.store'), []);
 

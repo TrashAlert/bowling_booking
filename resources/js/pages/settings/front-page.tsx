@@ -300,7 +300,7 @@ export default function FrontPageSettings({
                                 </div>
                                 <p className="text-sm text-muted-foreground">
                                     {openingHoursSet
-                                        ? 'The week is listed under the count of free lanes, with today in bold.'
+                                        ? "Shown under the two cards as one line with today's hours, which customers can tap to see the whole week."
                                         : 'No opening hours are set yet, so nothing is listed. Set them under Opening hours.'}
                                 </p>
                             </div>

@@ -254,14 +254,15 @@ class LaneBoard
     }
 
     /**
-     * The lanes of a reservation still waiting to check in that have been
-     * marked out of order: the group must be moved off them first.
+     * The lanes of a reservation still to begin that have been marked out of
+     * order: the group must be moved off them, whether or not it has checked
+     * in early.
      *
      * @return list<int>
      */
     private function closedLaneNumbers(Booking $booking): array
     {
-        if ($booking->status !== BookingStatus::Confirmed) {
+        if (! $booking->isMovable()) {
             return [];
         }
 
@@ -274,8 +275,9 @@ class LaneBoard
     }
 
     /**
-     * How many reservations still waiting to check in each lane has coming
-     * up, keyed by lane id. Shown when staff are about to close the lane.
+     * How many reservations still to begin each lane has coming up, keyed by
+     * lane id, counting groups checked in early. Shown when staff are about
+     * to close the lane.
      *
      * @return array<int, int>
      */
@@ -285,8 +287,7 @@ class LaneBoard
             ->occupying()
             ->where('ends_at', '>', $now)
             ->whereHas('booking', function (Builder $query) {
-                $query->where('status', BookingStatus::Confirmed->value)
-                    ->where('source', '!=', BookingSource::WalkIn->value);
+                $query->movable()->where('source', '!=', BookingSource::WalkIn->value);
             })
             ->get(['lane_id', 'booking_id'])
             ->groupBy('lane_id')

@@ -81,7 +81,7 @@ describe('moving a reservation to other lanes', function () {
 
         $response->assertInertiaFlash('toast', [
             'type' => 'error',
-            'message' => 'Only a confirmed reservation that is still to come can be moved.',
+            'message' => 'Only a reservation that is still to come, and not yet playing, can be moved.',
         ]);
     });
 

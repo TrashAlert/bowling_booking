@@ -33,6 +33,7 @@ class WaitlistTicket
      *     sessionEndsAt: string|null,
      *     deposit: array{amountCents: int, outcome: string|null}|null,
      *     pushOn: bool,
+     *     passedOver: bool,
      * }
      */
     public function for(WaitlistEntry $entry): array
@@ -75,6 +76,29 @@ class WaitlistTicket
             ],
             // Whether a phone will be notified when the party is called.
             'pushOn' => $entry->push_subscription !== null,
+            'passedOver' => $this->passedOver($entry),
         ];
+    }
+
+    /**
+     * Whether a party still waiting has seen a group that joined after it
+     * called or seated first. Parties are called to whichever lane fits
+     * their whole session, so a group playing for less time can take a lane
+     * that is only free for a short while, and this party keeps its place.
+     */
+    private function passedOver(WaitlistEntry $entry): bool
+    {
+        if ($entry->status !== WaitlistStatus::Waiting) {
+            return false;
+        }
+
+        return WaitlistEntry::query()
+            ->whereIn('status', [WaitlistStatus::Called->value, WaitlistStatus::Seated->value])
+            ->where(fn ($query) => $query
+                ->where('created_at', '>', $entry->created_at)
+                ->orWhere(fn ($query) => $query
+                    ->where('created_at', $entry->created_at)
+                    ->where('id', '>', $entry->id)))
+            ->exists();
     }
 }

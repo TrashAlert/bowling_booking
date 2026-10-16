@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\WaitlistEntry;
+use App\Services\WaitlistPlaces;
 use App\Services\WaitlistPush;
 use App\Services\WaitlistService;
 use App\Services\WaitlistTicket;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -14,10 +16,13 @@ class WaitlistEntryController extends Controller
 {
     /**
      * Show a party its own place in line. The page is reached by the secret
-     * link the party was given, and refreshes itself.
+     * link the party was given, and refreshes itself. The phone remembers it,
+     * so the front page can lead back to it.
      */
-    public function show(WaitlistEntry $entry, WaitlistTicket $ticket, WaitlistPush $push): Response
+    public function show(Request $request, WaitlistEntry $entry, WaitlistTicket $ticket, WaitlistPush $push, WaitlistPlaces $places): Response
     {
+        $places->remember($request, $entry);
+
         return Inertia::render('waitlist/show', [
             'ticket' => $ticket->for($entry),
             // The public half of the key pair, which the phone needs to turn
