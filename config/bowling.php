@@ -8,7 +8,7 @@ return [
 
     // The version shown in the staff sidebar. Not read from .env: raise it
     // here with each change that should be tracked.
-    'version' => '1.3.0',
+    'version' => '1.4.0',
 
     // The venue's time zone. Opening hours are clock times in this zone. An
     // admin can change it under Settings, Business.
@@ -76,6 +76,12 @@ return [
             StandInPaymentProvider::NAME => StandInPaymentProvider::class,
         ],
     ],
+
+    // The address customers reach the public pages at, e.g.
+    // "https://bowl.example.com". The QR code a walk-in scans to follow the
+    // line links there. Empty means the address the counter's screen was
+    // opened on, which only works for phones on the venue's own network.
+    'public_url' => env('BOWLING_PUBLIC_URL'),
 
     // The symbol shown in front of amounts of money. An admin can change it
     // under Settings, Business.

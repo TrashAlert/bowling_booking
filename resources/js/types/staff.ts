@@ -100,6 +100,17 @@ export type WaitlistRow = {
     depositCents: number | null;
 };
 
+// A walk-in to show the QR code of, which opens its own page about its
+// place in line.
+export type WalkInTicket = {
+    id: number;
+    name: string;
+    position: number;
+    // Only known straight after the party was added; null when no lane can
+    // be found for it at all.
+    estimatedWaitMinutes?: number | null;
+};
+
 export type ReservationRow = {
     id: number;
     customerName: string;

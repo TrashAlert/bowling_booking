@@ -32,6 +32,36 @@ describe('adding a walk-in', function () {
             ->and($entry->customer->phone)->toBe('0123456789');
     });
 
+    test('a walk-in who has to wait for a lane is given a QR code to follow the line', function () {
+        $this->travelTo('2026-10-01 18:00:00');
+        laneInPlay();
+
+        $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.store'), [
+            'name' => 'Farah',
+            'party_size' => 4,
+            'minutes' => 60,
+        ]);
+
+        $response->assertInertiaFlash('walkInTicket', [
+            'id' => WaitlistEntry::query()->sole()->id,
+            'name' => 'Farah',
+            'position' => 1,
+            'estimatedWaitMinutes' => 60,
+        ]);
+    });
+
+    test('a walk-in a lane is free for is given no QR code, as it is called at once', function () {
+        Lane::factory()->create();
+
+        $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.store'), [
+            'name' => 'Farah',
+            'party_size' => 4,
+            'minutes' => 60,
+        ]);
+
+        $response->assertInertiaFlashMissing('walkInTicket');
+    });
+
     test('a walk-in can be added without a phone number', function () {
         Lane::factory()->create();
 
@@ -264,6 +294,28 @@ describe('removing a party', function () {
 
     test('a party that does not exist returns 404', function () {
         $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.seat', 999));
+
+        $response->assertNotFound();
+    });
+});
+
+describe('the QR code of a party in line', function () {
+    test('staff can show it, as an image that is never kept', function () {
+        $entry = joinWaitlist();
+
+        $response = $this->actingAs(User::factory()->staff()->create())->get(route('staff.waitlist.qr-code', $entry));
+
+        $response->assertOk()
+            ->assertHeader('Content-Type', 'image/svg+xml')
+            ->assertHeader('Cache-Control', 'no-store, private');
+        expect($response->getContent())->toContain('<svg');
+    });
+
+    test('a party no longer in line has none', function () {
+        $entry = joinWaitlist();
+        app(WaitlistService::class)->leave($entry);
+
+        $response = $this->actingAs(User::factory()->staff()->create())->get(route('staff.waitlist.qr-code', $entry));
 
         $response->assertNotFound();
     });

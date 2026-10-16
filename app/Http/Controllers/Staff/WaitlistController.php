@@ -7,17 +7,25 @@ use App\Exceptions\InvalidStateException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Staff\StoreWalkInRequest;
 use App\Models\WaitlistEntry;
+use App\Services\WaitlistEstimate;
+use App\Services\WaitlistLink;
 use App\Services\WaitlistPush;
 use App\Services\WaitlistService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Response;
 use Inertia\Inertia;
 
 class WaitlistController extends Controller
 {
     /**
      * Add a walk-in party to the end of the line.
+     *
+     * A party that has to wait, because no lane is free for it now, is given
+     * a QR code to scan, which opens its own page about its place in the
+     * line. A party a lane is free for is called within the minute, so it
+     * gets none.
      */
-    public function store(StoreWalkInRequest $request, WaitlistService $waitlist): RedirectResponse
+    public function store(StoreWalkInRequest $request, WaitlistService $waitlist, WaitlistEstimate $estimate): RedirectResponse
     {
         $entry = $waitlist->joinAsNewCustomer(
             $request->string('name')->toString(),
@@ -28,7 +36,34 @@ class WaitlistController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name is in line.', ['name' => $entry->customer->name])]);
 
+        $wait = $estimate->forEntry($entry);
+
+        if ($wait !== 0) {
+            Inertia::flash('walkInTicket', [
+                'id' => $entry->id,
+                'name' => $entry->customer->name,
+                'position' => $entry->position(),
+                // Null when no lane can be found for the party at all.
+                'estimatedWaitMinutes' => $wait,
+            ]);
+        }
+
         return to_route('staff.board');
+    }
+
+    /**
+     * The QR code a party in line scans to open its own page, as an image.
+     * Only drawn while the party is still in line.
+     */
+    public function qrCode(WaitlistEntry $entry, WaitlistLink $link): Response
+    {
+        abort_unless(in_array($entry->status->value, WaitlistStatus::inLine(), true), 404);
+
+        return response($link->qrCodeSvg($entry), 200, [
+            'Content-Type' => 'image/svg+xml',
+            // It carries the party's secret link, so it is never kept.
+            'Cache-Control' => 'no-store',
+        ]);
     }
 
     /**

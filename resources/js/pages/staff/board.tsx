@@ -1,9 +1,11 @@
-import { Form, Head, usePoll } from '@inertiajs/react';
+import { Form, Head, router, usePoll } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
 import WaitlistController from '@/actions/App/Http/Controllers/Staff/WaitlistController';
 import { AddWalkInDialog } from '@/components/staff/add-walk-in-dialog';
 import { LaneCard } from '@/components/staff/lane-card';
 import { ReservationsPanel } from '@/components/staff/reservations-panel';
 import { WaitlistPanel } from '@/components/staff/waitlist-panel';
+import { WalkInTicketDialog } from '@/components/staff/walk-in-ticket-dialog';
 import { Button } from '@/components/ui/button';
 import { useServerClock } from '@/hooks/use-server-clock';
 import { board } from '@/routes/staff';
@@ -14,6 +16,7 @@ import type {
     ReservationRow,
     SessionRules,
     WaitlistRow,
+    WalkInTicket,
 } from '@/types';
 
 type Props = {
@@ -49,6 +52,20 @@ export default function Board({
     });
 
     const now = useServerClock(serverNow);
+    const [ticket, setTicket] = useState<WalkInTicket | null>(null);
+
+    // A walk-in just added that has to wait comes back with its QR code to
+    // show, for the customer to scan before leaving the counter.
+    useEffect(() => {
+        return router.on('flash', (event) => {
+            const walkIn = (event as CustomEvent).detail?.flash
+                ?.walkInTicket as WalkInTicket | undefined;
+
+            if (walkIn) {
+                setTicket(walkIn);
+            }
+        });
+    }, []);
     const freeLanes = lanes.filter((lane) => lane.state === 'free').length;
 
     return (
@@ -98,7 +115,11 @@ export default function Board({
                     </section>
 
                     <div className="flex flex-col gap-4">
-                        <WaitlistPanel waitlist={waitlist} now={now} />
+                        <WaitlistPanel
+                            waitlist={waitlist}
+                            now={now}
+                            onShowTicket={setTicket}
+                        />
                         <ReservationsPanel
                             reservations={reservations}
                             laneOptions={laneOptions}
@@ -107,6 +128,11 @@ export default function Board({
                     </div>
                 </div>
             </div>
+
+            <WalkInTicketDialog
+                ticket={ticket}
+                onClose={() => setTicket(null)}
+            />
         </>
     );
 }

@@ -16,6 +16,7 @@ Route::middleware(['auth', 'verified', 'staff'])->prefix('staff')->name('staff.'
 
     Route::post('waitlist', [WaitlistController::class, 'store'])->name('waitlist.store');
     Route::post('waitlist/call-next', [WaitlistController::class, 'callNext'])->name('waitlist.call-next');
+    Route::get('waitlist/{entry}/qr-code', [WaitlistController::class, 'qrCode'])->name('waitlist.qr-code');
     Route::post('waitlist/{entry}/seat', [WaitlistController::class, 'seat'])->name('waitlist.seat');
     Route::post('waitlist/{entry}/skip', [WaitlistController::class, 'skip'])->name('waitlist.skip');
     Route::delete('waitlist/{entry}', [WaitlistController::class, 'destroy'])->name('waitlist.destroy');

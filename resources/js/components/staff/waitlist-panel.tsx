@@ -1,4 +1,5 @@
 import { Form, usePage } from '@inertiajs/react';
+import { QrCode } from 'lucide-react';
 import WaitlistController from '@/actions/App/Http/Controllers/Staff/WaitlistController';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,9 +10,17 @@ import {
     formatMoney,
     formatSessionLength,
 } from '@/lib/format';
-import type { WaitlistRow } from '@/types';
+import type { WaitlistRow, WalkInTicket } from '@/types';
 
-function WaitlistEntry({ row, now }: { row: WaitlistRow; now: number }) {
+function WaitlistEntry({
+    row,
+    now,
+    onShowTicket,
+}: {
+    row: WaitlistRow;
+    now: number;
+    onShowTicket: (ticket: WalkInTicket) => void;
+}) {
     const { currencySymbol } = usePage().props;
     const lanes =
         row.laneNumbers.length > 0 ? formatLanes(row.laneNumbers) : null;
@@ -98,20 +107,40 @@ function WaitlistEntry({ row, now }: { row: WaitlistRow; now: number }) {
                             </Form>
                         </>
                     ) : (
-                        <Form
-                            {...WaitlistController.destroy.form(row.id)}
-                            options={{ preserveScroll: true }}
-                        >
-                            {({ processing }) => (
+                        <>
+                            {/* A party that joined online already has its page. */}
+                            {!row.joinedOnline && (
                                 <Button
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
-                                    disabled={processing}
+                                    aria-label={`Show ${row.customerName}'s QR code`}
+                                    onClick={() =>
+                                        onShowTicket({
+                                            id: row.id,
+                                            name: row.customerName,
+                                            position: row.position,
+                                        })
+                                    }
                                 >
-                                    Remove
+                                    <QrCode aria-hidden />
+                                    QR
                                 </Button>
                             )}
-                        </Form>
+                            <Form
+                                {...WaitlistController.destroy.form(row.id)}
+                                options={{ preserveScroll: true }}
+                            >
+                                {({ processing }) => (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={processing}
+                                    >
+                                        Remove
+                                    </Button>
+                                )}
+                            </Form>
+                        </>
                     )}
                 </div>
             </div>
@@ -122,9 +151,12 @@ function WaitlistEntry({ row, now }: { row: WaitlistRow; now: number }) {
 export function WaitlistPanel({
     waitlist,
     now,
+    onShowTicket,
 }: {
     waitlist: WaitlistRow[];
     now: number;
+    // Show the QR code a waiting walk-in scans to follow the line.
+    onShowTicket: (ticket: WalkInTicket) => void;
 }) {
     return (
         <section className="rounded-xl border bg-card p-4 text-card-foreground shadow-sm">
@@ -142,7 +174,12 @@ export function WaitlistPanel({
             ) : (
                 <ol className="divide-y">
                     {waitlist.map((row) => (
-                        <WaitlistEntry key={row.id} row={row} now={now} />
+                        <WaitlistEntry
+                            key={row.id}
+                            row={row}
+                            now={now}
+                            onShowTicket={onShowTicket}
+                        />
                     ))}
                 </ol>
             )}

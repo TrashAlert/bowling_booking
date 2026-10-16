@@ -19,6 +19,7 @@ test('users without a role are forbidden from every staff endpoint', function (s
     'lane board' => ['get', fn () => route('staff.board')],
     'add walk-in' => ['post', fn () => route('staff.waitlist.store')],
     'call next' => ['post', fn () => route('staff.waitlist.call-next')],
+    'show a QR code' => ['get', fn () => route('staff.waitlist.qr-code', joinWaitlist())],
     'seat' => ['post', fn () => route('staff.waitlist.seat', joinWaitlist())],
     'skip' => ['post', fn () => route('staff.waitlist.skip', joinWaitlist())],
     'remove' => ['delete', fn () => route('staff.waitlist.destroy', joinWaitlist())],
