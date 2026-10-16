@@ -32,9 +32,15 @@
             }
         </style>
 
-        <link rel="icon" href="/favicon.ico" sizes="any">
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        @if ($businessLogoUrl)
+            {{-- The logo uploaded under Settings, Business: in the browser tab, in bookmarks and on a phone's home screen. --}}
+            <link rel="icon" href="{{ $businessLogoUrl }}">
+            <link rel="apple-touch-icon" href="{{ $businessLogoUrl }}">
+        @else
+            <link rel="icon" href="/favicon.ico" sizes="any">
+            <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+            <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        @endif
 
         @fonts
 

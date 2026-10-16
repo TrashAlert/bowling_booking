@@ -1,16 +1,44 @@
 import { usePage } from '@inertiajs/react';
-import { MapPin, Phone } from 'lucide-react';
+import {
+    Facebook,
+    Instagram,
+    MapPin,
+    MessageCircle,
+    Music2,
+    Phone,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// The social networks in the order they are shown, each named in words
+// beside its mark so it never rests on the picture alone.
+const networks: {
+    network: 'whatsapp' | 'instagram' | 'facebook' | 'tiktok';
+    label: string;
+    icon: LucideIcon;
+}[] = [
+    { network: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
+    { network: 'instagram', label: 'Instagram', icon: Instagram },
+    { network: 'facebook', label: 'Facebook', icon: Facebook },
+    { network: 'tiktok', label: 'TikTok', icon: Music2 },
+];
 
 /**
  * How to reach the business, for the bottom of the customer pages: its
- * address, a phone number to tap and a link to a map. Each shows only if an
- * admin has filled it in under Settings; with none, nothing is shown at all.
+ * address, a phone number to tap, a link to a map, and its social media.
+ * Each shows only if an admin has filled it in under Settings; with none,
+ * nothing is shown at all.
  */
 export default function ContactDetails({ className }: { className?: string }) {
-    const { contact } = usePage().props;
+    const { contact, social } = usePage().props;
+    const accounts = networks.filter(({ network }) => social[network] !== null);
 
-    if (!contact.phone && !contact.address && !contact.mapUrl) {
+    if (
+        !contact.phone &&
+        !contact.address &&
+        !contact.mapUrl &&
+        accounts.length === 0
+    ) {
         return null;
     }
 
@@ -48,6 +76,23 @@ export default function ContactDetails({ className }: { className?: string }) {
                             View on map
                         </a>
                     )}
+                </p>
+            )}
+
+            {accounts.length > 0 && (
+                <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+                    {accounts.map(({ network, label, icon: Icon }) => (
+                        <a
+                            key={network}
+                            href={social[network] ?? undefined}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+                        >
+                            <Icon aria-hidden className="size-3.5" />
+                            {label}
+                        </a>
+                    ))}
                 </p>
             )}
         </address>

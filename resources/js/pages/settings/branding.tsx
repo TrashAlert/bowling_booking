@@ -7,17 +7,21 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { textColorOn } from '@/lib/colors';
 import { edit } from '@/routes/branding';
 
 /**
- * Where an admin sets the business name and logo shown on every page, and
- * the currency symbol and time zone the venue works in.
+ * Where an admin sets the business name and logo shown on every page, the
+ * colour of the customer pages, and the currency symbol and time zone the
+ * venue works in.
  */
 export default function Branding({
     businessName,
     businessLogoUrl,
     maxLogoKilobytes,
     contact,
+    brandColor,
+    social,
     venue,
     timezones,
 }: {
@@ -31,11 +35,24 @@ export default function Branding({
         address: string | null;
         mapUrl: string | null;
     };
+    // The colour of buttons on the customer pages; null for black and white.
+    brandColor: string | null;
+    // The social media accounts as kept: the WhatsApp number as digits, the
+    // names without "@", and the Facebook page's part of its address.
+    social: {
+        whatsapp: string | null;
+        instagram: string | null;
+        facebook: string | null;
+        tiktok: string | null;
+    };
     venue: { currencySymbol: string; timezone: string };
     // Every time zone that can be picked, e.g. "Asia/Kuala_Lumpur".
     timezones: string[];
 }) {
     const [removeLogo, setRemoveLogo] = useState(false);
+    const [ownColor, setOwnColor] = useState(brandColor !== null);
+    const [color, setColor] = useState(brandColor ?? '#1d4ed8');
+    const colorIsValid = /^#[0-9a-f]{6}$/i.test(color);
 
     return (
         <>
@@ -146,6 +163,72 @@ export default function Branding({
                                 />
                             </div>
 
+                            <div className="grid gap-2">
+                                <input
+                                    type="hidden"
+                                    name="brand_color"
+                                    value={ownColor ? color : ''}
+                                />
+                                <div className="flex items-center gap-2">
+                                    <Checkbox
+                                        id="own-color"
+                                        checked={ownColor}
+                                        onCheckedChange={(checked) =>
+                                            setOwnColor(checked === true)
+                                        }
+                                    />
+                                    <Label htmlFor="own-color">
+                                        Use our own colour on the customer pages
+                                    </Label>
+                                </div>
+
+                                {ownColor ? (
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <input
+                                            type="color"
+                                            aria-label="Brand colour"
+                                            value={
+                                                colorIsValid ? color : '#000000'
+                                            }
+                                            onChange={(event) =>
+                                                setColor(event.target.value)
+                                            }
+                                            className="h-9 w-14 cursor-pointer rounded-md border border-input bg-transparent p-1"
+                                        />
+                                        <Input
+                                            aria-label="Brand colour code"
+                                            value={color}
+                                            onChange={(event) =>
+                                                setColor(event.target.value)
+                                            }
+                                            maxLength={7}
+                                            autoComplete="off"
+                                            className="w-28 font-mono"
+                                        />
+                                        {colorIsValid && (
+                                            <span
+                                                aria-hidden
+                                                className="inline-flex h-9 items-center rounded-md px-4 text-sm font-medium shadow-xs"
+                                                style={{
+                                                    backgroundColor: color,
+                                                    color: textColorOn(color),
+                                                }}
+                                            >
+                                                Join the waitlist
+                                            </span>
+                                        )}
+                                    </div>
+                                ) : null}
+
+                                <p className="text-sm text-muted-foreground">
+                                    {ownColor
+                                        ? 'Buttons and highlights on the front page, the waitlist and the reservation page take this colour, with white or dark text, whichever reads better. The staff pages stay as they are.'
+                                        : 'The customer pages use plain black and white.'}
+                                </p>
+
+                                <InputError message={errors.brand_color} />
+                            </div>
+
                             <fieldset className="space-y-4 rounded-lg border p-4">
                                 <legend className="px-1 text-sm font-medium">
                                     Contact details
@@ -209,6 +292,100 @@ export default function Branding({
                                         Share, and paste the link here.
                                     </p>
                                     <InputError message={errors.map_url} />
+                                </div>
+                            </fieldset>
+
+                            <fieldset className="space-y-4 rounded-lg border p-4">
+                                <legend className="px-1 text-sm font-medium">
+                                    Social media
+                                </legend>
+                                <p className="text-sm text-muted-foreground">
+                                    Shown as links at the bottom of the customer
+                                    pages. Type a name or paste the account's
+                                    link; leave any of them empty to hide it.
+                                </p>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="social-whatsapp">
+                                        WhatsApp number
+                                    </Label>
+                                    <Input
+                                        id="social-whatsapp"
+                                        name="whatsapp"
+                                        type="tel"
+                                        defaultValue={
+                                            social.whatsapp
+                                                ? `+${social.whatsapp}`
+                                                : ''
+                                        }
+                                        maxLength={30}
+                                        autoComplete="off"
+                                        placeholder="+60 12-345 6789"
+                                    />
+                                    <p className="text-sm text-muted-foreground">
+                                        With the country code, such as 60 for
+                                        Malaysia. Customers can then message you
+                                        in one tap.
+                                    </p>
+                                    <InputError message={errors.whatsapp} />
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="social-instagram">
+                                        Instagram
+                                    </Label>
+                                    <Input
+                                        id="social-instagram"
+                                        name="instagram"
+                                        defaultValue={
+                                            social.instagram
+                                                ? `@${social.instagram}`
+                                                : ''
+                                        }
+                                        maxLength={200}
+                                        autoComplete="off"
+                                        placeholder="@kingpinbowl"
+                                    />
+                                    <InputError message={errors.instagram} />
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="social-facebook">
+                                        Facebook page
+                                    </Label>
+                                    <Input
+                                        id="social-facebook"
+                                        name="facebook"
+                                        type="url"
+                                        defaultValue={
+                                            social.facebook
+                                                ? `https://www.facebook.com/${social.facebook}`
+                                                : ''
+                                        }
+                                        maxLength={200}
+                                        autoComplete="off"
+                                        placeholder="https://www.facebook.com/kingpinbowl"
+                                    />
+                                    <InputError message={errors.facebook} />
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="social-tiktok">
+                                        TikTok
+                                    </Label>
+                                    <Input
+                                        id="social-tiktok"
+                                        name="tiktok"
+                                        defaultValue={
+                                            social.tiktok
+                                                ? `@${social.tiktok}`
+                                                : ''
+                                        }
+                                        maxLength={200}
+                                        autoComplete="off"
+                                        placeholder="@kingpinbowl"
+                                    />
+                                    <InputError message={errors.tiktok} />
                                 </div>
                             </fieldset>
 

@@ -23,6 +23,8 @@ class BrandingController extends Controller
             'businessLogoUrl' => $branding->logoUrl(),
             'maxLogoKilobytes' => BrandingUpdateRequest::MAX_LOGO_KILOBYTES,
             'contact' => $branding->contact(),
+            'brandColor' => $branding->brandColor(),
+            'social' => $branding->social(),
             'venue' => [
                 'currencySymbol' => config('bowling.currency_symbol'),
                 'timezone' => config('bowling.timezone'),
@@ -49,6 +51,14 @@ class BrandingController extends Controller
 
         foreach ($request->safe()->only(['phone', 'address', 'map_url']) as $detail => $value) {
             $branding->setContact($detail, $value);
+        }
+
+        foreach ($request->safe()->only(array_keys(Branding::SOCIAL)) as $network => $typed) {
+            $branding->setSocial($network, $typed);
+        }
+
+        if ($request->safe()->has('brand_color')) {
+            $branding->setBrandColor($request->safe()->input('brand_color'));
         }
 
         if ($request->hasFile('logo')) {

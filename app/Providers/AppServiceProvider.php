@@ -52,8 +52,12 @@ class AppServiceProvider extends ServiceProvider
         $this->applySavedRules();
 
         // The page every screen starts from carries the business name, for
-        // the browser tab's title.
-        View::composer('app', fn ($view) => $view->with('businessName', app(Branding::class)->name()));
+        // the browser tab's title, and its logo, for the tab's icon.
+        View::composer('app', function ($view) {
+            $branding = app(Branding::class)->forPages();
+
+            $view->with(['businessName' => $branding['name'], 'businessLogoUrl' => $branding['logoUrl']]);
+        });
     }
 
     /**

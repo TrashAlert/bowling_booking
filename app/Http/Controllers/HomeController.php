@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\WaitlistStatus;
 use App\Models\WaitlistEntry;
+use App\Services\FrontPage;
 use App\Services\LaneAvailability;
 use App\Services\LaneInventory;
 use App\Services\OpeningHours;
@@ -26,9 +27,19 @@ class HomeController extends Controller
      * someone arriving now. When every lane is out of order the page says
      * that instead of a count.
      */
-    public function __invoke(WaitlistEstimate $estimate, LaneInventory $inventory, OpeningHours $hours, LaneAvailability $availability, WaitlistDeposits $deposits, WaitlistSettings $settings): Response
+    public function __invoke(WaitlistEstimate $estimate, LaneInventory $inventory, OpeningHours $hours, LaneAvailability $availability, WaitlistDeposits $deposits, WaitlistSettings $settings, FrontPage $frontPage): Response
     {
         return Inertia::render('welcome', [
+            // The words an admin set under Settings, Front page.
+            'texts' => $frontPage->texts(),
+            // The photo behind the business name; null when there is none.
+            'coverUrl' => $frontPage->coverUrl(),
+            // The week's hours, Monday first, with today on the venue's
+            // clock; null while an admin hides them or none are set.
+            'openingHours' => $frontPage->showsOpeningHours() && $hours->isSet() ? [
+                'days' => $hours->week(),
+                'today' => now($hours->timezone())->dayOfWeek,
+            ] : null,
             // Whether customers can join the waitlist online, and what they
             // are told while not.
             'onlineWaitlist' => $settings->onlineStatus(),

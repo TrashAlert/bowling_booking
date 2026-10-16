@@ -258,3 +258,114 @@ test('a contact detail that is not acceptable is refused', function (array $payl
     'a map link that is not a web address' => [['map_url' => 'opposite the station'], 'map_url', 'The map link must be a web address starting with http:// or https://.'],
     'a map link that would run a script' => [['map_url' => 'javascript:alert(1)'], 'map_url', 'The map link must be a web address starting with http:// or https://.'],
 ]);
+
+test('there is no brand colour until an admin picks one', function () {
+    $response = $this->actingAs(User::factory()->admin()->create())->get(route('branding.edit'));
+
+    $response->assertInertia(fn (Assert $page) => $page->where('brandColor', null));
+    $this->get(route('home'))->assertInertia(fn (Assert $page) => $page->where('brand', null));
+});
+
+test('admins can pick a brand colour, which the customer pages use with text that reads on it', function (string $picked, string $color, string $textColor) {
+    $this->actingAs(User::factory()->admin()->create())
+        ->post(route('branding.update'), ['name' => 'Kingpin Bowl', 'brand_color' => $picked])
+        ->assertSessionHasNoErrors();
+
+    auth()->logout();
+    $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
+        ->where('brand', ['color' => $color, 'textColor' => $textColor]));
+})->with([
+    'a dark blue, with white text' => ['#1D4ED8', '#1d4ed8', '#ffffff'],
+    'a bright yellow, with dark text' => ['#facc15', '#facc15', '#0a0a0a'],
+]);
+
+test('emptying the brand colour goes back to the plain black and white', function () {
+    app(Branding::class)->setBrandColor('#1d4ed8');
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->post(route('branding.update'), ['name' => 'Kingpin Bowl', 'brand_color' => ''])
+        ->assertSessionHasNoErrors();
+
+    expect(app(Branding::class)->brandColor())->toBeNull();
+});
+
+test('a brand colour that is not a plain colour code is refused', function (string $color) {
+    $response = $this->actingAs(User::factory()->admin()->create())
+        ->post(route('branding.update'), ['name' => 'Kingpin Bowl', 'brand_color' => $color]);
+
+    $response->assertSessionHasErrors(['brand_color' => 'The brand colour must be a colour like #1d4ed8.']);
+    expect(app(Branding::class)->brandColor())->toBeNull();
+})->with([
+    'a colour name' => ['red'],
+    'too few digits' => ['#12345'],
+    'something written into the page\'s styles' => ['#000; } body { display: none'],
+]);
+
+test('the business has no social media accounts until an admin fills them in', function () {
+    $response = $this->actingAs(User::factory()->admin()->create())->get(route('branding.edit'));
+
+    $none = ['whatsapp' => null, 'instagram' => null, 'facebook' => null, 'tiktok' => null];
+    $response->assertInertia(fn (Assert $page) => $page->where('social', $none));
+    $this->get(route('home'))->assertInertia(fn (Assert $page) => $page->where('social', $none));
+});
+
+test('a social media account can be typed in the natural way, and the customer pages link to it', function (string $network, string $typed, string $kept, string $link) {
+    $this->actingAs(User::factory()->admin()->create())
+        ->post(route('branding.update'), ['name' => 'Kingpin Bowl', $network => $typed])
+        ->assertSessionHasNoErrors();
+    auth()->logout();
+
+    expect(app(Branding::class)->social()[$network])->toBe($kept);
+    $this->get(route('home'))->assertInertia(fn (Assert $page) => $page->where("social.{$network}", $link));
+})->with([
+    'a WhatsApp number with spaces and dashes' => ['whatsapp', '+60 12-345 6789', '60123456789', 'https://wa.me/60123456789'],
+    'an Instagram name with @' => ['instagram', '@kingpin.bowl', 'kingpin.bowl', 'https://www.instagram.com/kingpin.bowl/'],
+    'an Instagram link' => ['instagram', 'https://www.instagram.com/kingpin.bowl/?hl=en', 'kingpin.bowl', 'https://www.instagram.com/kingpin.bowl/'],
+    'a TikTok link' => ['tiktok', 'https://www.tiktok.com/@kingpinbowl', 'kingpinbowl', 'https://www.tiktok.com/@kingpinbowl'],
+    'a Facebook page link from a phone' => ['facebook', 'https://m.facebook.com/kingpinbowl', 'kingpinbowl', 'https://www.facebook.com/kingpinbowl'],
+    'a Facebook profile with no page name' => ['facebook', 'https://www.facebook.com/profile.php?id=100012345678', 'profile.php?id=100012345678', 'https://www.facebook.com/profile.php?id=100012345678'],
+]);
+
+test('emptying a social media account takes it off the pages', function () {
+    app(Branding::class)->setSocial('instagram', '@kingpinbowl');
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->post(route('branding.update'), ['name' => 'Kingpin Bowl', 'instagram' => ''])
+        ->assertSessionHasNoErrors();
+
+    expect(app(Branding::class)->social()['instagram'])->toBeNull();
+});
+
+test('a social media account that is not one is refused', function (string $network, string $typed, string $message) {
+    $response = $this->actingAs(User::factory()->admin()->create())
+        ->post(route('branding.update'), ['name' => 'Kingpin Bowl', $network => $typed]);
+
+    $response->assertSessionHasErrors([$network => $message]);
+    expect(app(Branding::class)->social()[$network])->toBeNull();
+})->with([
+    'a WhatsApp number with words' => ['whatsapp', 'call us', 'The WhatsApp number must be a phone number with its country code, such as +60 12-345 6789.'],
+    'an Instagram link to another site' => ['instagram', 'https://evil.example.com/kingpinbowl', 'The Instagram account must be a name such as @kingpinbowl, or a link to it on instagram.com.'],
+    'a Facebook link that would run a script' => ['facebook', 'javascript:alert(1)', 'The Facebook page must be a link to it on facebook.com.'],
+    'a Facebook address with markup' => ['facebook', 'https://www.facebook.com/<script>', 'The Facebook page must be a link to it on facebook.com.'],
+    'a TikTok name with a space' => ['tiktok', 'kingpin bowl', 'The TikTok account must be a name such as @kingpinbowl, or a link to it on tiktok.com.'],
+]);
+
+test('the browser tab and a phone\'s home screen show the logo once one is uploaded', function () {
+    $this->actingAs(User::factory()->admin()->create())
+        ->post(route('branding.update'), ['name' => 'Kingpin Bowl', 'logo' => UploadedFile::fake()->image('logo.png', 300, 300)]);
+    auth()->logout();
+
+    $response = $this->get(route('home'));
+
+    $url = e(app(Branding::class)->logoUrl());
+    $response->assertSee("<link rel=\"icon\" href=\"{$url}\">", false)
+        ->assertSee("<link rel=\"apple-touch-icon\" href=\"{$url}\">", false)
+        ->assertDontSee('/favicon.svg', false);
+});
+
+test('the browser tab keeps the plain icon while the business has no logo', function () {
+    $response = $this->get(route('home'));
+
+    $response->assertSee('<link rel="icon" href="/favicon.svg" type="image/svg+xml">', false)
+        ->assertDontSee('/branding/logo', false);
+});

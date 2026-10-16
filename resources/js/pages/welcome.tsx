@@ -1,5 +1,7 @@
 import { Head, Link, usePage, usePoll } from '@inertiajs/react';
 import { CalendarClock, Users } from 'lucide-react';
+import AnnouncementBanner from '@/components/announcement-banner';
+import BrandColors from '@/components/brand-colors';
 import BusinessLogo from '@/components/business-logo';
 import ContactDetails from '@/components/contact-details';
 import ThemeToggle from '@/components/theme-toggle';
@@ -15,24 +17,34 @@ import {
 import { cn } from '@/lib/utils';
 import { reserve } from '@/routes';
 import { join } from '@/routes/waitlist';
-import { formatTime, formatWhen } from '@/lib/format';
-import type { OnlineWaitlistStatus, OpeningStatus } from '@/types';
+import {
+    formatTime,
+    formatTimeOfDay,
+    formatWeekday,
+    formatWhen,
+} from '@/lib/format';
+import type {
+    FrontPageOpeningHours,
+    FrontPageTexts,
+    OnlineWaitlistStatus,
+    OpeningStatus,
+} from '@/types';
 
 // How often the page asks again how many lanes are free.
 const POLL_INTERVAL_MS = 30_000;
 
 // What customers can do from this page. Joining the waitlist works, with a
 // stand-in for the deposit payment. Reserving sends a request that staff
-// confirm by phone.
-const actions = [
+// confirm by phone. The titles, descriptions and buttons are the words an
+// admin set under Settings, Front page.
+const actions = (texts: FrontPageTexts) => [
     {
         // Can be closed by an admin under Settings, Online waitlist.
         closable: true,
         icon: Users,
-        title: 'Join the waitlist',
-        description:
-            'Walking in? Add your group to the line and we will call you when a lane is ready.',
-        action: 'Join the waitlist',
+        title: texts.waitlistTitle,
+        description: texts.waitlistText,
+        action: texts.waitlistButton,
         note: 'A deposit is only needed when every lane is busy.',
         // Said instead while the venue has the deposit turned off.
         noteWithoutDeposit: 'No deposit is needed to join.',
@@ -41,15 +53,55 @@ const actions = [
     {
         closable: false,
         icon: CalendarClock,
-        title: 'Reserve a lane',
-        description:
-            'Planning ahead? Pick a date and time and we will keep a lane for you.',
-        action: 'Make a reservation',
+        title: texts.reserveTitle,
+        description: texts.reserveText,
+        action: texts.reserveButton,
         note: 'Send us a request and we will call you to confirm.',
         noteWithoutDeposit: null,
         href: reserve(),
     },
 ];
+
+/**
+ * The week's opening hours, today in bold. A day that runs past midnight
+ * reads e.g. "10:00 AM – 2:00 AM".
+ */
+function OpeningHoursList({ days, today }: FrontPageOpeningHours) {
+    return (
+        <div className="mx-auto mt-4 w-fit rounded-xl border px-5 py-3 text-left text-sm">
+            <p className="mb-1 text-center font-medium">Opening hours</p>
+            <dl className="grid grid-cols-[auto_auto] gap-x-6 gap-y-0.5">
+                {days.map((day) => {
+                    const isToday = day.weekday === today;
+
+                    return (
+                        <div
+                            key={day.weekday}
+                            className={cn(
+                                'contents',
+                                isToday
+                                    ? 'font-semibold text-foreground'
+                                    : 'text-muted-foreground',
+                            )}
+                        >
+                            <dt>
+                                {formatWeekday(day.weekday, true)}
+                                {isToday && (
+                                    <span className="sr-only"> (today)</span>
+                                )}
+                            </dt>
+                            <dd className="text-right tabular-nums">
+                                {day.opens && day.closes
+                                    ? `${formatTimeOfDay(day.opens)} – ${formatTimeOfDay(day.closes)}`
+                                    : 'Closed'}
+                            </dd>
+                        </div>
+                    );
+                })}
+            </dl>
+        </div>
+    );
+}
 
 type LaneCount = {
     // Lanes free right now, after the ones the waitlist is about to take.
@@ -154,6 +206,9 @@ export default function Welcome({
     depositAsked,
     opening,
     onlineWaitlist,
+    texts,
+    coverUrl,
+    openingHours,
 }: {
     lanes: LaneCount;
     // False while every lane is out of order.
@@ -163,6 +218,12 @@ export default function Welcome({
     opening: OpeningStatus;
     // Whether customers can join the waitlist online at all.
     onlineWaitlist: OnlineWaitlistStatus;
+    // The words an admin set for this page.
+    texts: FrontPageTexts;
+    // The photo behind the business name; null when there is none.
+    coverUrl: string | null;
+    // The week's hours; null while an admin hides them or none are set.
+    openingHours: FrontPageOpeningHours | null;
 }) {
     const { name } = usePage().props;
 
@@ -179,8 +240,10 @@ export default function Welcome({
     return (
         <>
             <Head title="Welcome" />
+            <BrandColors />
 
             <div className="flex min-h-screen flex-col bg-background text-foreground">
+                <AnnouncementBanner />
                 <header className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4 p-4 sm:p-6">
                     <span className="flex items-center gap-2 truncate font-semibold tracking-tight">
                         <BusinessLogo className="size-6 shrink-0 rounded" />
@@ -191,24 +254,52 @@ export default function Welcome({
 
                 <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center gap-10 p-4 sm:p-6">
                     <div className="text-center">
-                        <BusinessLogo className="mx-auto mb-4 size-24 rounded-xl" />
-                        <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-                            {name}
-                        </h1>
-                        <p className="mt-3 text-lg text-muted-foreground">
-                            Come and bowl. Walk in, or book a lane ahead.
-                        </p>
+                        {coverUrl ? (
+                            // The photo is darkened so the white words read
+                            // on any picture.
+                            <div className="relative overflow-hidden rounded-2xl px-6 py-16 text-white sm:py-24">
+                                <img
+                                    src={coverUrl}
+                                    alt=""
+                                    className="absolute inset-0 size-full object-cover"
+                                />
+                                <div
+                                    aria-hidden
+                                    className="absolute inset-0 bg-black/55"
+                                />
+                                <div className="relative">
+                                    <BusinessLogo className="mx-auto mb-4 size-24 rounded-xl" />
+                                    <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+                                        {name}
+                                    </h1>
+                                    <p className="mt-3 text-lg text-white/85">
+                                        {texts.tagline}
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <BusinessLogo className="mx-auto mb-4 size-24 rounded-xl" />
+                                <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+                                    {name}
+                                </h1>
+                                <p className="mt-3 text-lg text-muted-foreground">
+                                    {texts.tagline}
+                                </p>
+                            </>
+                        )}
                         <LanesFree
                             {...lanes}
                             lanesOpen={lanesOpen}
                             opening={opening}
                         />
+                        {openingHours && <OpeningHoursList {...openingHours} />}
                     </div>
 
                     {/* Each card's heading, note and button sit on rows shared
                         with the card beside it, so the two always line up. */}
                     <div className="grid gap-4 sm:grid-cols-2">
-                        {actions.map((item) => (
+                        {actions(texts).map((item) => (
                             <Card
                                 key={item.title}
                                 className="row-span-3 grid grid-rows-subgrid"

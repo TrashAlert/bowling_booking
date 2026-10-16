@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BrandingLogoController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FrontPageCoverController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ReserveLaneController;
 use App\Http\Controllers\WaitlistDepositController;
@@ -15,6 +16,9 @@ Route::get('/', HomeController::class)->name('home');
 
 // The business logo an admin uploaded, shown on every page.
 Route::get('branding/logo', BrandingLogoController::class)->name('branding.logo');
+
+// The photo an admin uploaded for the top of the front page.
+Route::get('branding/cover', FrontPageCoverController::class)->name('front-page.cover');
 
 // Joining the waitlist online: the form, the deposit, then the party's own
 // page. The last two are reached by a secret token in the address.

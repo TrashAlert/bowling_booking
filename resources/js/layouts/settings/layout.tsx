@@ -8,6 +8,7 @@ import { cn, toUrl } from '@/lib/utils';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit as editBranding } from '@/routes/branding';
 import { edit as editDashboardParts } from '@/routes/dashboard-parts';
+import { edit as editFrontPage } from '@/routes/front-page';
 import { edit as editDeposit } from '@/routes/deposit';
 import { edit as editLanes } from '@/routes/lanes';
 import { edit as editOnlineWaitlist } from '@/routes/online-waitlist';
@@ -38,6 +39,7 @@ const navGroups: NavGroup[] = [
         adminOnly: true,
         items: [
             { title: 'Business', href: editBranding(), icon: null },
+            { title: 'Front page', href: editFrontPage(), icon: null },
             { title: 'Lanes', href: editLanes(), icon: null },
             { title: 'Opening hours', href: editOpeningHours(), icon: null },
         ],

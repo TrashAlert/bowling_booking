@@ -20,6 +20,20 @@ declare module '@inertiajs/core' {
                 address: string | null;
                 mapUrl: string | null;
             };
+            // The business's social media accounts, as the addresses to open
+            // them at; each is null until an admin fills it in.
+            social: {
+                whatsapp: string | null;
+                instagram: string | null;
+                facebook: string | null;
+                tiktok: string | null;
+            };
+            // The banner across the top of the customer pages; null when
+            // there is none or it has ended.
+            announcement: string | null;
+            // The colour customer pages use for buttons, with the text
+            // colour that reads on it; null for plain black and white.
+            brand: { color: string; textColor: string } | null;
             version: string;
             // The symbol shown in front of amounts of money, e.g. "RM".
             currencySymbol: string;

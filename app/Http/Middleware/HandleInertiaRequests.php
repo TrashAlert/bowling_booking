@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Services\BookingRequests;
 use App\Services\Branding;
+use App\Services\FrontPage;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -42,6 +43,9 @@ class HandleInertiaRequests extends Middleware
             // The business name ("name") and the address of its logo
             // ("logoUrl", null when it has none), as set under Settings.
             ...app(Branding::class)->forPages(),
+            // The banner across the top of the customer pages, while one is
+            // up; null when there is none or it has ended.
+            'announcement' => fn () => app(FrontPage::class)->currentAnnouncement(),
             'version' => config('bowling.version'),
             'currencySymbol' => config('bowling.currency_symbol'),
             // How many reservation requests are waiting, for the staff sidebar.

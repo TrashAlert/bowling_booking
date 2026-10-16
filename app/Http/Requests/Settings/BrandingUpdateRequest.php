@@ -2,12 +2,14 @@
 
 namespace App\Http\Requests\Settings;
 
+use App\Services\Branding;
+use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * The business name and logo, and the currency symbol and time zone it
- * works in, as an admin sets them.
+ * The business name, logo and brand colour, and the currency symbol and
+ * time zone it works in, as an admin sets them.
  */
 class BrandingUpdateRequest extends FormRequest
 {
@@ -41,6 +43,23 @@ class BrandingUpdateRequest extends FormRequest
             'phone' => ['sometimes', 'nullable', 'string', 'max:30', 'regex:/\A[0-9+()\-\s]+\z/'],
             'address' => ['sometimes', 'nullable', 'string', 'max:200'],
             'map_url' => ['sometimes', 'nullable', 'string', 'max:500', 'url:http,https'],
+            // Social media accounts, each in whatever form is natural to type;
+            // each may be left empty.
+            ...collect(Branding::SOCIAL)
+                ->map(fn (string $key, string $network) => [
+                    'sometimes',
+                    'nullable',
+                    'string',
+                    'max:200',
+                    function (string $attribute, mixed $value, Closure $fail) use ($network) {
+                        if (Branding::plainSocial($network, (string) $value) === null) {
+                            $fail($this->socialMessage($network));
+                        }
+                    },
+                ])
+                ->all(),
+            // Empty goes back to the plain black and white.
+            'brand_color' => ['sometimes', 'nullable', 'string', 'regex:'.Branding::COLOR_PATTERN],
         ];
     }
 
@@ -61,6 +80,19 @@ class BrandingUpdateRequest extends FormRequest
     }
 
     /**
+     * What an admin is told when a social media account isn't one.
+     */
+    private function socialMessage(string $network): string
+    {
+        return match ($network) {
+            'whatsapp' => __('The WhatsApp number must be a phone number with its country code, such as +60 12-345 6789.'),
+            'instagram' => __('The Instagram account must be a name such as @kingpinbowl, or a link to it on instagram.com.'),
+            'facebook' => __('The Facebook page must be a link to it on facebook.com.'),
+            'tiktok' => __('The TikTok account must be a name such as @kingpinbowl, or a link to it on tiktok.com.'),
+        };
+    }
+
+    /**
      * Get the error messages for the defined validation rules.
      *
      * @return array<string, string>
@@ -74,6 +106,7 @@ class BrandingUpdateRequest extends FormRequest
             'logo.dimensions' => __('The logo can be up to 2000 pixels wide and tall.'),
             'phone.regex' => __('The phone number can only contain digits, spaces and + ( ) -.'),
             'map_url.url' => __('The map link must be a web address starting with http:// or https://.'),
+            'brand_color.regex' => __('The brand colour must be a colour like #1d4ed8.'),
         ];
     }
 }

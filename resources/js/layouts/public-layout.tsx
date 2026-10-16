@@ -1,6 +1,8 @@
 import { Link, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
+import AnnouncementBanner from '@/components/announcement-banner';
+import BrandColors from '@/components/brand-colors';
 import BusinessLogo from '@/components/business-logo';
 import ContactDetails from '@/components/contact-details';
 import ThemeToggle from '@/components/theme-toggle';
@@ -16,6 +18,8 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
 
     return (
         <div className="flex min-h-screen flex-col bg-background text-foreground">
+            <BrandColors />
+            <AnnouncementBanner />
             <header className="mx-auto flex w-full max-w-md items-center justify-between gap-4 p-4 sm:p-6">
                 <Link
                     href={home()}

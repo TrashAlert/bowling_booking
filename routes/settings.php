@@ -3,6 +3,7 @@
 use App\Http\Controllers\Settings\BrandingController;
 use App\Http\Controllers\Settings\DashboardPartsController;
 use App\Http\Controllers\Settings\DepositController;
+use App\Http\Controllers\Settings\FrontPageController;
 use App\Http\Controllers\Settings\LaneController;
 use App\Http\Controllers\Settings\OnlineWaitlistController;
 use App\Http\Controllers\Settings\OpeningHoursController;
@@ -36,6 +37,10 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::get('settings/business', [BrandingController::class, 'edit'])->name('branding.edit');
     // POST, not PUT: a logo upload only arrives intact that way.
     Route::post('settings/business', [BrandingController::class, 'update'])->name('branding.update');
+
+    Route::get('settings/front-page', [FrontPageController::class, 'edit'])->name('front-page.edit');
+    // POST, not PUT: a photo upload only arrives intact that way.
+    Route::post('settings/front-page', [FrontPageController::class, 'update'])->name('front-page.update');
 
     Route::get('settings/lanes', [LaneController::class, 'edit'])->name('lanes.edit');
     Route::put('settings/lanes', [LaneController::class, 'update'])->name('lanes.update');
