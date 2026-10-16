@@ -213,8 +213,8 @@ class LaneClosures
 
     /**
      * How many reservations still to come have to be moved off the lane
-     * because it is out of order. With an estimate of when the lane will be
-     * back, only those before it count.
+     * because it is out of order, including groups checked in early. With an
+     * estimate of when the lane will be back, only those before it count.
      */
     public function reservationsToMove(Lane $lane): int
     {
@@ -222,8 +222,7 @@ class LaneClosures
             ->occupying()
             ->where('ends_at', '>', now())
             ->whereHas('booking', function (Builder $query) {
-                $query->where('status', BookingStatus::Confirmed->value)
-                    ->where('source', '!=', BookingSource::WalkIn->value);
+                $query->movable()->where('source', '!=', BookingSource::WalkIn->value);
             })
             ->get()
             ->filter(fn (LaneAllocation $allocation) => $lane->needsMovingAt($allocation->starts_at))

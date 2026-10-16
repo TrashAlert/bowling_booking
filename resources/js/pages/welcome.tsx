@@ -1,11 +1,16 @@
 import { Head, Link, usePage, usePoll } from '@inertiajs/react';
-import { CalendarClock, Users } from 'lucide-react';
+import { CalendarClock, ChevronDown, Clock, Users } from 'lucide-react';
 import AnnouncementBanner from '@/components/announcement-banner';
 import BrandColors from '@/components/brand-colors';
 import BusinessLogo from '@/components/business-logo';
 import ContactDetails from '@/components/contact-details';
 import ThemeToggle from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import {
     Card,
     CardContent,
@@ -24,6 +29,7 @@ import {
     formatWhen,
 } from '@/lib/format';
 import type {
+    DayHours,
     FrontPageOpeningHours,
     FrontPageTexts,
     OnlineWaitlistStatus,
@@ -63,43 +69,135 @@ const actions = (texts: FrontPageTexts) => [
 ];
 
 /**
- * The week's opening hours, today in bold. A day that runs past midnight
- * reads e.g. "10:00 AM – 2:00 AM".
+ * A day's hours, e.g. "10:00 AM – 11:00 PM", or null when it is closed. A day
+ * that runs past midnight reads e.g. "10:00 AM – 2:00 AM".
+ */
+function hoursOf(day: DayHours | undefined): string | null {
+    return day?.opens && day.closes
+        ? `${formatTimeOfDay(day.opens)} – ${formatTimeOfDay(day.closes)}`
+        : null;
+}
+
+/**
+ * The opening hours in one line, today's, which opens to show the whole
+ * week with today in bold.
  */
 function OpeningHoursList({ days, today }: FrontPageOpeningHours) {
-    return (
-        <div className="mx-auto mt-4 w-fit rounded-xl border px-5 py-3 text-left text-sm">
-            <p className="mb-1 text-center font-medium">Opening hours</p>
-            <dl className="grid grid-cols-[auto_auto] gap-x-6 gap-y-0.5">
-                {days.map((day) => {
-                    const isToday = day.weekday === today;
+    const todays = hoursOf(days.find((day) => day.weekday === today));
 
-                    return (
-                        <div
-                            key={day.weekday}
-                            className={cn(
-                                'contents',
-                                isToday
-                                    ? 'font-semibold text-foreground'
-                                    : 'text-muted-foreground',
-                            )}
-                        >
-                            <dt>
-                                {formatWeekday(day.weekday, true)}
-                                {isToday && (
-                                    <span className="sr-only"> (today)</span>
-                                )}
-                            </dt>
-                            <dd className="text-right tabular-nums">
-                                {day.opens && day.closes
-                                    ? `${formatTimeOfDay(day.opens)} – ${formatTimeOfDay(day.closes)}`
-                                    : 'Closed'}
-                            </dd>
+    return (
+        <Collapsible className="-mt-4 text-center text-sm">
+            <CollapsibleTrigger className="group inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-md px-3 py-1.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50">
+                <Clock aria-hidden className="size-4 shrink-0" />
+                <span>
+                    {todays ? (
+                        <>
+                            Open today{' '}
+                            <span className="font-medium text-foreground tabular-nums">
+                                {todays}
+                            </span>
+                        </>
+                    ) : (
+                        <span className="font-medium text-foreground">
+                            Closed today
+                        </span>
+                    )}
+                </span>
+                <span aria-hidden>·</span>
+                <span className="inline-flex items-center gap-1 underline-offset-4 group-hover:underline">
+                    All opening hours
+                    <ChevronDown
+                        aria-hidden
+                        className="size-4 transition-transform group-data-[state=open]:rotate-180"
+                    />
+                </span>
+            </CollapsibleTrigger>
+
+            <CollapsibleContent>
+                <div className="mx-auto mt-2 w-fit rounded-xl border px-5 py-3 text-left">
+                    <dl className="grid grid-cols-[auto_auto] gap-x-6 gap-y-0.5">
+                        {days.map((day) => {
+                            const isToday = day.weekday === today;
+
+                            return (
+                                <div
+                                    key={day.weekday}
+                                    className={cn(
+                                        'contents',
+                                        isToday
+                                            ? 'font-semibold text-foreground'
+                                            : 'text-muted-foreground',
+                                    )}
+                                >
+                                    <dt>
+                                        {formatWeekday(day.weekday, true)}
+                                        {isToday && (
+                                            <span className="sr-only">
+                                                {' '}
+                                                (today)
+                                            </span>
+                                        )}
+                                    </dt>
+                                    <dd className="text-right tabular-nums">
+                                        {hoursOf(day) ?? 'Closed'}
+                                    </dd>
+                                </div>
+                            );
+                        })}
+                    </dl>
+                </div>
+            </CollapsibleContent>
+        </Collapsible>
+    );
+}
+
+type YourPlace = {
+    name: string;
+    status: 'waiting' | 'called';
+    position: number;
+    // The group's own page.
+    url: string;
+};
+
+/**
+ * The groups this phone is following in the waitlist, so a customer who
+ * closed the page can get back to it. Called groups are told to go to the
+ * counter.
+ */
+function YourPlaces({ places }: { places: YourPlace[] }) {
+    return (
+        <section aria-label="Your place in line" className="grid gap-3">
+            {places.map((place) => {
+                const called = place.status === 'called';
+
+                return (
+                    <div
+                        key={place.url}
+                        className={cn(
+                            'flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4',
+                            called &&
+                                'border-amber-300 bg-amber-50 dark:border-amber-500/40 dark:bg-amber-500/10',
+                        )}
+                    >
+                        <div className="min-w-0">
+                            <p className="font-medium">
+                                {called
+                                    ? `It is your turn, ${place.name}`
+                                    : `You are in line, ${place.name}`}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                                {called
+                                    ? 'Go to the counter now.'
+                                    : `Number ${place.position} in line.`}
+                            </p>
                         </div>
-                    );
-                })}
-            </dl>
-        </div>
+                        <Button asChild>
+                            <Link href={place.url}>View your place</Link>
+                        </Button>
+                    </div>
+                );
+            })}
+        </section>
     );
 }
 
@@ -209,6 +307,7 @@ export default function Welcome({
     texts,
     coverUrl,
     openingHours,
+    yourPlaces,
 }: {
     lanes: LaneCount;
     // False while every lane is out of order.
@@ -224,6 +323,8 @@ export default function Welcome({
     coverUrl: string | null;
     // The week's hours; null while an admin hides them or none are set.
     openingHours: FrontPageOpeningHours | null;
+    // The groups this phone has opened the page of that are still in line.
+    yourPlaces: YourPlace[];
 }) {
     const { name } = usePage().props;
 
@@ -234,6 +335,7 @@ export default function Welcome({
             'depositAsked',
             'opening',
             'onlineWaitlist',
+            'yourPlaces',
         ],
     });
 
@@ -253,6 +355,10 @@ export default function Welcome({
                 </header>
 
                 <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center gap-10 p-4 sm:p-6">
+                    {yourPlaces.length > 0 && (
+                        <YourPlaces places={yourPlaces} />
+                    )}
+
                     <div className="text-center">
                         {coverUrl ? (
                             // The photo is darkened so the white words read
@@ -293,7 +399,6 @@ export default function Welcome({
                             lanesOpen={lanesOpen}
                             opening={opening}
                         />
-                        {openingHours && <OpeningHoursList {...openingHours} />}
                     </div>
 
                     {/* Each card's heading, note and button sit on rows shared
@@ -344,6 +449,8 @@ export default function Welcome({
                             </Card>
                         ))}
                     </div>
+
+                    {openingHours && <OpeningHoursList {...openingHours} />}
                 </main>
 
                 <footer className="space-y-3 p-4 text-center text-sm text-muted-foreground sm:p-6">

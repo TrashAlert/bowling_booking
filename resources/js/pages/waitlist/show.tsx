@@ -98,8 +98,11 @@ function Status({
                             {ticket.position}
                         </p>
                         <p className="text-sm text-muted-foreground">
+                            {/* Not "you are next": a group behind can be
+                                called first when its session fits a lane
+                                that is free for less time. */}
                             {ticket.partiesAhead === 0
-                                ? 'You are next'
+                                ? 'No group is ahead of you'
                                 : `${ticket.partiesAhead} ${ticket.partiesAhead === 1 ? 'group' : 'groups'} ahead of you`}
                         </p>
                         {ticket.estimatedWaitMinutes !== null && (
@@ -110,6 +113,13 @@ function Status({
                             </p>
                         )}
                     </div>
+                    {ticket.passedOver && (
+                        <p className="text-sm text-muted-foreground">
+                            A lane was free only for a shorter session than
+                            yours, so a group playing for less time went first.
+                            You keep your place in line.
+                        </p>
+                    )}
                     <p className="text-sm text-muted-foreground">
                         Stay close by. When it is your turn this page will say
                         so, and you have {checkInMinutes} minutes to check in at

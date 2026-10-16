@@ -15,7 +15,8 @@ export type WaitlistTicket = {
     partySize: number;
     minutes: number;
     joinedAt: string;
-    // 1 means next in line. Null once the party is no longer in line.
+    // 1 means first in line, though a group behind can still be called first
+    // when only its shorter session fits. Null once out of the line.
     position: number | null;
     partiesAhead: number | null;
     // A rough guess of the minutes left to wait; null once called or out of
@@ -28,6 +29,9 @@ export type WaitlistTicket = {
     sessionEndsAt: string | null;
     // Whether a phone will be sent a notification when the party is called.
     pushOn: boolean;
+    // True while the party waits and a group that joined after it has been
+    // called or seated first: its session fitted a lane free for less time.
+    passedOver: boolean;
     // Null for a walk-in added by staff, who pays no deposit.
     deposit: {
         amountCents: number;

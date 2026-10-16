@@ -22,6 +22,8 @@ void createInertiaApp({
                 return null;
             case name.startsWith('waitlist/'):
             case name.startsWith('reserve/'):
+            // Error pages may come before anyone has signed in.
+            case name === 'error':
                 return PublicLayout;
             case name.startsWith('auth/'):
                 return AuthLayout;

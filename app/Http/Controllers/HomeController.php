@@ -10,7 +10,9 @@ use App\Services\LaneInventory;
 use App\Services\OpeningHours;
 use App\Services\WaitlistDeposits;
 use App\Services\WaitlistEstimate;
+use App\Services\WaitlistPlaces;
 use App\Services\WaitlistSettings;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,10 +28,15 @@ class HomeController extends Controller
      * to be called to are taken off, so the number is what is left for
      * someone arriving now. When every lane is out of order the page says
      * that instead of a count.
+     *
+     * A customer whose phone has opened its place in line is led back to it.
      */
-    public function __invoke(WaitlistEstimate $estimate, LaneInventory $inventory, OpeningHours $hours, LaneAvailability $availability, WaitlistDeposits $deposits, WaitlistSettings $settings, FrontPage $frontPage): Response
+    public function __invoke(Request $request, WaitlistEstimate $estimate, LaneInventory $inventory, OpeningHours $hours, LaneAvailability $availability, WaitlistDeposits $deposits, WaitlistSettings $settings, FrontPage $frontPage, WaitlistPlaces $places): Response
     {
         return Inertia::render('welcome', [
+            // The groups this phone has opened the page of that are still in
+            // line, with the address of each one's page.
+            'yourPlaces' => fn () => $places->inLine($request),
             // The words an admin set under Settings, Front page.
             'texts' => $frontPage->texts(),
             // The photo behind the business name; null when there is none.

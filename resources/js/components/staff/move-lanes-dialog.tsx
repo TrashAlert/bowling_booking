@@ -17,8 +17,8 @@ import type { RouteDefinition } from '@/wayfinder';
 
 /**
  * Puts a reservation on other lanes without changing its time. Staff need
- * this when one of its lanes has been closed: the group can't check in until
- * it is off that lane.
+ * this when one of its lanes has been closed: the group can't check in, or
+ * start playing if it checked in early, until it is off that lane.
  *
  * The page it is on supplies the lanes through its laneOptions prop; lookup
  * builds that page's address for asking which lanes are free.
@@ -105,7 +105,7 @@ export function MoveLanesDialog({
                 </DialogTitle>
                 <DialogDescription>
                     {closed.length > 0
-                        ? `${formatLanes(closed)} ${closed.length === 1 ? 'is' : 'are'} closed, so the group can't check in there. `
+                        ? `${formatLanes(closed)} ${closed.length === 1 ? 'is' : 'are'} closed, so the group can't play there. `
                         : ''}
                     Tick the lanes for {formatTime(reservation.startsAt)} to{' '}
                     {formatTime(reservation.endsAt)}. The time stays the same.

@@ -101,3 +101,31 @@ test('a waiting party that fits no lane right now does not take one off the coun
     $response->assertInertia(fn (Assert $page) => $page
         ->where('lanes', ['free' => 1, 'total' => 2, 'waiting' => 2]));
 });
+
+test('the front page leads a phone back to the groups in line whose page it has opened', function () {
+    $farah = joinWaitlist(name: 'Farah');
+    $gone = joinWaitlist(name: 'Gone home');
+    joinWaitlist(name: 'Someone else');
+    $first = $this->get(route('waitlist.show', ['entry' => $farah->token]));
+    $second = $this->withCookie('waitlist_places', $first->getCookie('waitlist_places')->getValue())
+        ->get(route('waitlist.show', ['entry' => $gone->token]));
+    app(WaitlistService::class)->leave($gone);
+
+    $response = $this->withCookie('waitlist_places', $second->getCookie('waitlist_places')->getValue())
+        ->get(route('home'));
+
+    $response->assertInertia(fn (Assert $page) => $page->where('yourPlaces', [[
+        'name' => 'Farah',
+        'status' => 'waiting',
+        'position' => 1,
+        'url' => "/waitlist/{$farah->token}",
+    ]]));
+});
+
+test('a phone that has opened no place in line is shown none', function () {
+    joinWaitlist();
+
+    $response = $this->get(route('home'));
+
+    $response->assertInertia(fn (Assert $page) => $page->where('yourPlaces', []));
+});

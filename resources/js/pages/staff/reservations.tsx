@@ -150,6 +150,13 @@ function ReservationRow({
                 )}
             </div>
 
+            {/* A group checked in early can only be moved, until it starts. */}
+            {row.status === 'checked_in' && needsMoving && (
+                <Button size="sm" className="shrink-0" onClick={onMove}>
+                    Move lanes
+                </Button>
+            )}
+
             {row.status === 'confirmed' && (
                 <div className="flex shrink-0 gap-2">
                     <Button variant="destructive" size="sm" onClick={onCancel}>

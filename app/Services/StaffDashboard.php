@@ -281,14 +281,17 @@ class StaffDashboard
     }
 
     /**
-     * Reservations still to check in that have a lane out of order, soonest
-     * first, with only the lane time that is still to come loaded.
+     * Reservations still to begin that have a lane out of order, checked in
+     * early or not, soonest first, with only the lane time that is still to
+     * come loaded.
      *
      * @return Collection<int, Booking>
      */
     private function reservationsToMove(CarbonImmutable $now): Collection
     {
-        return $this->reservationsToCheckIn()
+        return Booking::query()
+            ->movable()
+            ->whereIn('source', [BookingSource::Online->value, BookingSource::Phone->value])
             ->whereHas('allocations', function (Builder $query) use ($now) {
                 $query->occupying()
                     ->where('ends_at', '>', $now)

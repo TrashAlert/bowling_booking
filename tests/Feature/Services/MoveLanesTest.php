@@ -9,7 +9,9 @@ use App\Models\Lane;
 use App\Models\LaneAllocation;
 use App\Services\BookingService;
 use App\Services\LaneBoard;
+use App\Services\LaneClosures;
 use App\Services\ReservationSchedule;
+use App\Services\StaffDashboard;
 
 beforeEach(function () {
     $this->travelTo('2026-10-01 18:00:00');
@@ -102,6 +104,19 @@ describe('moving', function () {
         expect(lanePeriods($booking))->toBe([5 => ['18:10 - 19:00']]);
     });
 
+    test('a group checked in early is moved off a closed lane and stays checked in', function () {
+        $three = Lane::factory()->create(['number' => 3]);
+        $five = Lane::factory()->create(['number' => 5]);
+        $booking = reserveLanes($three, now()->addMinutes(30), minutes: 60);
+        app(BookingService::class)->checkIn($booking);
+        app(LaneClosures::class)->closeForRepair($three);
+
+        $moved = app(BookingService::class)->moveLanes($booking, collect([$five]));
+
+        expect($moved->status)->toBe(BookingStatus::CheckedIn)
+            ->and(lanePeriods($booking))->toBe([5 => ['18:00 - 18:30', '18:30 - 19:30']]);
+    });
+
     test('a lane gained ahead of time is closed for the hour before, like any reserved lane', function () {
         $three = Lane::factory()->create(['number' => 3]);
         $five = Lane::factory()->create(['number' => 5]);
@@ -170,18 +185,18 @@ describe('moving', function () {
             });
     });
 
-    test('only a confirmed reservation that is still to come can be moved', function (Closure $arrange) {
+    test('only a reservation that is still to come, and not yet playing, can be moved', function (Closure $arrange) {
         $lane = Lane::factory()->create(['number' => 3]);
         $other = Lane::factory()->create(['number' => 5]);
         $booking = reserveLanes($lane, now(), minutes: 60);
         $arrange($booking, $this);
 
         expect(fn () => app(BookingService::class)->moveLanes($booking, collect([$other])))
-            ->toThrow(InvalidStateException::class, 'Only a confirmed reservation that is still to come can be moved.');
+            ->toThrow(InvalidStateException::class, 'Only a reservation that is still to come, and not yet playing, can be moved.');
 
         $this->assertDatabaseMissing('lane_allocations', ['lane_id' => $other->id]);
     })->with([
-        'checked in' => [fn (Booking $booking) => app(BookingService::class)->checkIn($booking)],
+        'checked in and playing' => [fn (Booking $booking) => app(BookingService::class)->checkIn($booking)],
         'cancelled' => [fn (Booking $booking) => app(BookingService::class)->cancel($booking)],
         'already over' => [fn (Booking $booking, $test) => $test->travel(61)->minutes()],
     ]);
@@ -213,6 +228,25 @@ describe('flagging', function () {
 
         expect($onBoard['closedLaneNumbers'])->toBe([]);
     });
+
+    test('a checked-in group on a closed lane is flagged only until its time begins', function (int $startsInMinutes, array $flagged, int $toMove) {
+        $three = Lane::factory()->create(['number' => 3]);
+        app(BookingService::class)->checkIn(reserveLanes($three, now()->addMinutes($startsInMinutes)));
+
+        app(LaneClosures::class)->closeForRepair($three);
+
+        $onBoard = app(LaneBoard::class)->reservations()[0];
+        $onDayList = app(ReservationSchedule::class)->between(now()->startOfDay(), now()->startOfDay()->addDay())[0];
+        $onDashboard = collect(app(StaffDashboard::class)->attention()['reservationsToMove'])->pluck('closedLaneNumbers')->collapse()->all();
+
+        expect($onBoard['closedLaneNumbers'])->toBe($flagged)
+            ->and($onDayList['closedLaneNumbers'])->toBe($flagged)
+            ->and($onDashboard)->toBe($flagged)
+            ->and(app(LaneClosures::class)->reservationsToMove($three->refresh()))->toBe($toMove);
+    })->with([
+        'checked in early' => [30, [3], 1],
+        'already playing' => [0, [], 0],
+    ]);
 
     test('a cancelled reservation on a closed lane is not flagged', function () {
         $lane = Lane::factory()->create();

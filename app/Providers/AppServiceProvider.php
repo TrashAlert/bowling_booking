@@ -13,11 +13,21 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Inertia\ExceptionResponse;
+use Inertia\Inertia;
 use InvalidArgumentException;
 use Minishlink\WebPush\WebPush;
 
 class AppServiceProvider extends ServiceProvider
 {
+    /**
+     * The errors shown as a page of the app: not allowed, not found, timed
+     * out, too many tries, a fault, and down for maintenance.
+     *
+     * @var list<int>
+     */
+    private const ERROR_PAGES = [403, 404, 419, 429, 500, 503];
+
     /**
      * Register any application services.
      */
@@ -50,6 +60,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->configureTrustedProxies();
         $this->applySavedRules();
+        $this->configureErrorPages();
 
         // The page every screen starts from carries the business name, for
         // the browser tab's title, and its logo, for the tab's icon.
@@ -75,6 +86,29 @@ class AppServiceProvider extends ServiceProvider
         } catch (QueryException) {
             //
         }
+    }
+
+    /**
+     * Show errors as a page of the app, with the business's name and colours,
+     * in place of Laravel's bare error pages: a mistyped link, a page that
+     * timed out, too many tries in a row, maintenance, or a fault.
+     *
+     * A fault is left to Laravel's own page while debugging is on, so the
+     * details stay visible during development. Requests that want JSON, such
+     * as a payment provider's notice, are left alone too.
+     */
+    protected function configureErrorPages(): void
+    {
+        Inertia::handleExceptionsUsing(function (ExceptionResponse $response) {
+            $status = $response->statusCode();
+            $shown = in_array($status, self::ERROR_PAGES, true) && ! ($status === 500 && config('app.debug'));
+
+            if (! $shown || $response->request->expectsJson()) {
+                return null;
+            }
+
+            return $response->render('error', ['status' => $status])->withSharedData();
+        });
     }
 
     /**

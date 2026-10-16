@@ -330,8 +330,9 @@ class BookingService
     }
 
     /**
-     * Put a confirmed reservation on a different set of lanes without
-     * changing its time: staff do this when one of its lanes has been closed.
+     * Put a reservation on a different set of lanes without changing its
+     * time: staff do this when one of its lanes has been closed. It may be
+     * still to check in, or checked in early with its time not yet begun.
      *
      * Lanes it keeps are left as they are and lanes it drops are freed. A lane
      * it gains is booked from the reservation's start, or from now if that
@@ -341,7 +342,7 @@ class BookingService
      *
      * @param  Collection<int, Lane>  $lanes
      *
-     * @throws InvalidStateException if the reservation is no longer confirmed, or is already over.
+     * @throws InvalidStateException if the group is already playing, the reservation was cancelled, or it is over.
      * @throws NoLaneAvailableException naming the first lane that is closed or isn't free.
      */
     public function moveLanes(Booking $booking, Collection $lanes): Booking
@@ -354,8 +355,9 @@ class BookingService
             $booking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
             $current = $booking->allocations()->occupying()->get();
 
-            if ($booking->status !== BookingStatus::Confirmed || $current->isEmpty() || $current->max('ends_at') <= now()) {
-                throw new InvalidStateException('Only a confirmed reservation that is still to come can be moved.');
+            // A group checked in early can be moved too, until its time begins.
+            if ($current->isEmpty() || ! $booking->setRelation('allocations', $current)->isMovable() || $current->max('ends_at') <= now()) {
+                throw new InvalidStateException('Only a reservation that is still to come, and not yet playing, can be moved.');
             }
 
             foreach ($lanes as $lane) {

@@ -228,6 +228,15 @@ test('a phone number with anything but digits is refused', function (string $pho
     'brackets' => '(012)3456789',
 ]);
 
+test('a phone number shorter than ten digits is refused', function () {
+    $response = $this->post(route('waitlist.store'), joinForm(['phone' => '012345678']));
+
+    $response->assertSessionHasErrors([
+        'phone' => 'The phone number must have at least 10 digits.',
+    ]);
+    $this->assertDatabaseCount('waitlist_deposits', 0);
+});
+
 test('a group bigger than one lane is told to join again for the rest', function () {
     $response = $this->post(route('waitlist.store'), joinForm(['party_size' => 7]));
 

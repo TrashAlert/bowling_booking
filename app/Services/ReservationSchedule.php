@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\BookingSource;
-use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\LaneAllocation;
 use Carbon\CarbonInterface;
@@ -144,8 +143,9 @@ class ReservationSchedule
                 ->values()
                 ->all(),
             'notes' => $booking->notes,
-            // Lanes marked out of order under a reservation still to check in.
-            'closedLaneNumbers' => $booking->status === BookingStatus::Confirmed
+            // Lanes marked out of order under a reservation still to begin,
+            // checked in early or not.
+            'closedLaneNumbers' => $booking->isMovable()
                 ? $booking->allocations
                     ->filter(fn (LaneAllocation $allocation) => $allocation->lane->needsMovingAt($allocation->starts_at))
                     ->pluck('lane.number')
