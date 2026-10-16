@@ -32,12 +32,17 @@ class WaitlistDeposits
     ) {}
 
     /**
-     * Turn a party away while the venue is closed, saying when it opens.
+     * Turn a party away while an admin has closed joining online, with the
+     * admin's message, or while the venue is closed, saying when it opens.
      *
-     * @throws InvalidStateException when the venue is closed now.
+     * @throws InvalidStateException when joining online is closed, or the venue is closed now.
      */
     public function ensureOpen(): void
     {
+        if (! $this->settings->onlineJoiningOpen()) {
+            throw new InvalidStateException($this->settings->closedNotice());
+        }
+
         if (! $this->hours->isOpenAt(now())) {
             throw new InvalidStateException($this->hours->closedNotice(now()));
         }

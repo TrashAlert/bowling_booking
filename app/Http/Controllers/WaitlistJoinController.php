@@ -10,6 +10,7 @@ use App\Services\LaneBoard;
 use App\Services\OpeningHours;
 use App\Services\WaitlistDeposits;
 use App\Services\WaitlistEstimate;
+use App\Services\WaitlistSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -32,9 +33,12 @@ class WaitlistJoinController extends Controller
     /**
      * Show the page where a party adds itself to the waitlist.
      */
-    public function create(Request $request, LaneBoard $board, WaitlistEstimate $estimate, OpeningHours $hours, LaneAvailability $availability, WaitlistDeposits $deposits): Response
+    public function create(Request $request, LaneBoard $board, WaitlistEstimate $estimate, OpeningHours $hours, LaneAvailability $availability, WaitlistDeposits $deposits, WaitlistSettings $settings): Response
     {
         return Inertia::render('waitlist/join', [
+            // Whether an admin lets customers join online at all, and what
+            // they are told while not.
+            'online' => fn () => $settings->onlineStatus(),
             'session' => $board->sessionRules(),
             'checkInMinutes' => config('bowling.waitlist_checkin_minutes'),
             // Zero while the deposit is turned off in the settings.

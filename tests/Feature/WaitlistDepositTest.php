@@ -4,6 +4,7 @@ use App\Enums\WaitlistStatus;
 use App\Models\WaitlistDeposit;
 use App\Models\WaitlistEntry;
 use App\Services\WaitlistDeposits;
+use App\Services\WaitlistSettings;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('a party sees what it is about to pay', function () {
@@ -32,6 +33,18 @@ test('paying puts the party in line and sends it to its own page', function () {
     $response->assertRedirect(route('waitlist.show', ['entry' => $entry->token]));
     expect($entry->status)->toBe(WaitlistStatus::Waiting)
         ->and($deposit->refresh()->isPaid())->toBeTrue();
+});
+
+test('a deposit cannot be paid once joining online has been closed', function () {
+    laneInPlay();
+    $deposit = app(WaitlistDeposits::class)->start('Farah', '0123456789', 90, 5);
+    app(WaitlistSettings::class)->setOnlineJoining(false, 'Closed tonight for a private event.');
+
+    $response = $this->post(route('waitlist.deposit.store', ['deposit' => $deposit->token]));
+
+    $response->assertSessionHasErrors(['closed' => 'Closed tonight for a private event.']);
+    expect($deposit->refresh()->isPaid())->toBeFalse();
+    $this->assertDatabaseCount('waitlist_entries', 0);
 });
 
 test('a deposit cannot be paid once the venue has closed', function () {

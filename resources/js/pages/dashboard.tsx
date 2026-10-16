@@ -1,9 +1,11 @@
-import { Form, Head, Link, usePoll } from '@inertiajs/react';
+import { Form, Head, Link, usePage, usePoll } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
 import {
     CalendarClock,
     CircleCheck,
+    Ban,
     Clock,
+    EyeOff,
     Inbox,
     TriangleAlert,
     Wrench,
@@ -35,11 +37,13 @@ import {
 import { reservationsPage } from '@/lib/reservations';
 import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
+import { edit as editOnlineWaitlist } from '@/routes/online-waitlist';
 import { board } from '@/routes/staff';
 import { index as requests } from '@/routes/staff/requests';
 import type {
     DashboardAnalytics,
     DashboardAttention,
+    DashboardParts,
     DashboardRightNow,
 } from '@/types';
 
@@ -73,8 +77,11 @@ type AttentionItem = {
     urgent: boolean;
     title: string;
     detail: string;
-    action: string;
-    href: NonNullable<InertiaLinkProps['href']>;
+    // Where to deal with it; null when the person looking can't.
+    action: {
+        label: string;
+        href: NonNullable<InertiaLinkProps['href']>;
+    } | null;
 };
 
 /**
@@ -85,8 +92,25 @@ type AttentionItem = {
 function attentionItems(
     attention: DashboardAttention,
     now: number,
+    isAdmin: boolean,
 ): AttentionItem[] {
     const items: AttentionItem[] = [];
+
+    // Easy to forget once the night it was closed for is over.
+    if (attention.onlineJoiningClosed) {
+        items.push({
+            key: 'online-closed',
+            icon: Ban,
+            urgent: false,
+            title: 'Joining the waitlist online is closed',
+            detail: isAdmin
+                ? 'Customers are asked to come to the counter. Open it again under Settings when you are ready.'
+                : 'Customers are asked to come to the counter. An admin can open it again.',
+            action: isAdmin
+                ? { label: 'Settings', href: editOnlineWaitlist() }
+                : null,
+        });
+    }
 
     for (const row of attention.lateReservations) {
         const left = Date.parse(row.noShowAt) - now;
@@ -101,8 +125,7 @@ function attentionItems(
                     ? `counts as a no-show in ${formatMinutes(left)}`
                     : 'about to count as a no-show'
             }`,
-            action: 'Lane board',
-            href: board(),
+            action: { label: 'Lane board', href: board() },
         });
     }
 
@@ -113,8 +136,10 @@ function attentionItems(
             urgent: true,
             title: `${row.customerName}'s reservation needs moving`,
             detail: `${formatLanes(row.closedLaneNumbers)} closed · starts ${when(row.startsAt, now)}`,
-            action: 'Move lanes',
-            href: reservationsPage(toDateInput(new Date(row.startsAt))),
+            action: {
+                label: 'Move lanes',
+                href: reservationsPage(toDateInput(new Date(row.startsAt))),
+            },
         });
     }
 
@@ -130,8 +155,7 @@ function attentionItems(
                 callNow > 0
                     ? `${callNow} ${callNow === 1 ? 'is' : 'are'} good to call now.`
                     : 'Call the customer to confirm or decline each one.',
-            action: 'Requests',
-            href: requests(),
+            action: { label: 'Requests', href: requests() },
         });
     }
 
@@ -147,8 +171,7 @@ function attentionItems(
                     : lane.overdue
                       ? `It was expected back ${when(lane.until, now)}. Reopen it once it is fixed.`
                       : `Expected back ${when(lane.until, now)}.`,
-            action: 'Lane board',
-            href: board(),
+            action: { label: 'Lane board', href: board() },
         });
     }
 
@@ -162,7 +185,8 @@ function NeedsAttention({
     attention: DashboardAttention;
     now: number;
 }) {
-    const items = attentionItems(attention, now);
+    const { auth } = usePage().props;
+    const items = attentionItems(attention, now, auth.user.role === 'admin');
 
     return (
         <section className="rounded-xl border bg-card p-4 text-card-foreground shadow-sm">
@@ -195,9 +219,13 @@ function NeedsAttention({
                                     {item.detail}
                                 </p>
                             </div>
-                            <Button size="sm" variant="outline" asChild>
-                                <Link href={item.href}>{item.action}</Link>
-                            </Button>
+                            {item.action !== null && (
+                                <Button size="sm" variant="outline" asChild>
+                                    <Link href={item.action.href}>
+                                        {item.action.label}
+                                    </Link>
+                                </Button>
+                            )}
                         </li>
                     ))}
                 </ul>
@@ -382,11 +410,14 @@ function sessionColumns(byDay: DashboardAnalytics['byDay']): {
 
 function Analytics({
     analytics,
+    parts,
     periods,
     customRange,
     maxCustomDays,
 }: {
     analytics: DashboardAnalytics;
+    // Which parts an admin has left on.
+    parts: DashboardParts;
     periods: number[];
     customRange: { from: string; to: string } | null;
     maxCustomDays: number;
@@ -394,6 +425,8 @@ function Analytics({
     const { sessions, waitlist } = analytics;
     const played = sessions.walkIns + sessions.reservations;
     const byPeriod = sessionColumns(analytics.byDay);
+    // One day has no days to chart against each other.
+    const showByDay = parts.sessionsByDay && analytics.byDay.length > 1;
     const today = toDateInput(new Date());
     // The form for picking the days stays open while they are in use.
     const [choosing, setChoosing] = useState(customRange !== null);
@@ -510,115 +543,130 @@ function Analytics({
                 </Form>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <StatTile
-                    label="Sessions played"
-                    value={played.toLocaleString()}
-                    detail={`${plural(sessions.walkIns, 'walk-in', 'walk-ins')} · ${plural(sessions.reservations, 'reservation', 'reservations')}`}
-                />
-                <StatTile
-                    label="People bowling"
-                    value={analytics.people.toLocaleString()}
-                    detail={
-                        played > 0
-                            ? `About ${(analytics.people / played).toFixed(1)} to a session`
-                            : 'Nobody has played yet'
-                    }
-                />
-                <StatTile
-                    label="Lane hours"
-                    value={Number(
-                        (analytics.laneMinutes / 60).toFixed(1),
-                    ).toLocaleString()}
-                    detail="Time on the lanes, all sessions together"
-                />
-                <StatTile
-                    label="No-shows"
-                    value={analytics.noShows.toLocaleString()}
-                    detail={`Of ${plural(sessions.reservations + analytics.noShows, 'reservation', 'reservations')} due · ${analytics.cancelled.toLocaleString()} cancelled`}
-                />
-                <StatTile
-                    label="Groups in the waitlist"
-                    value={waitlist.joined.toLocaleString()}
-                    detail={`${waitlist.joinedOnline.toLocaleString()} joined online · ${waitlist.missedCalls.toLocaleString()} missed their call · ${waitlist.left.toLocaleString()} left the line`}
-                />
-                <StatTile
-                    label="Average wait"
-                    value={
-                        waitlist.averageWaitMinutes === null
-                            ? '–'
-                            : formatMinutes(
-                                  waitlist.averageWaitMinutes * 60_000,
-                              )
-                    }
-                    detail="From joining the line to being called"
-                />
-            </div>
+            {parts.totals && (
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <StatTile
+                        label="Sessions played"
+                        value={played.toLocaleString()}
+                        detail={`${plural(sessions.walkIns, 'walk-in', 'walk-ins')} · ${plural(sessions.reservations, 'reservation', 'reservations')}`}
+                    />
+                    <StatTile
+                        label="People bowling"
+                        value={analytics.people.toLocaleString()}
+                        detail={
+                            played > 0
+                                ? `About ${(analytics.people / played).toFixed(1)} to a session`
+                                : 'Nobody has played yet'
+                        }
+                    />
+                    <StatTile
+                        label="Lane hours"
+                        value={Number(
+                            (analytics.laneMinutes / 60).toFixed(1),
+                        ).toLocaleString()}
+                        detail="Time on the lanes, all sessions together"
+                    />
+                    <StatTile
+                        label="No-shows"
+                        value={analytics.noShows.toLocaleString()}
+                        detail={`Of ${plural(sessions.reservations + analytics.noShows, 'reservation', 'reservations')} due · ${analytics.cancelled.toLocaleString()} cancelled`}
+                    />
+                    <StatTile
+                        label="Groups in the waitlist"
+                        value={waitlist.joined.toLocaleString()}
+                        detail={`${waitlist.joinedOnline.toLocaleString()} joined online · ${waitlist.missedCalls.toLocaleString()} missed their call · ${waitlist.left.toLocaleString()} left the line`}
+                    />
+                    <StatTile
+                        label="Average wait"
+                        value={
+                            waitlist.averageWaitMinutes === null
+                                ? '–'
+                                : formatMinutes(
+                                      waitlist.averageWaitMinutes * 60_000,
+                                  )
+                        }
+                        detail="From joining the line to being called"
+                    />
+                </div>
+            )}
 
-            <div className="grid items-start gap-4 xl:grid-cols-2">
-                {analytics.byDay.length > 1 && (
-                    <div className="rounded-xl border bg-card p-4 text-card-foreground shadow-sm">
-                        <h3 className="mb-3 font-medium">{byPeriod.title}</h3>
-                        <ColumnChart
-                            series={[WALK_INS, RESERVATIONS]}
-                            columns={byPeriod.columns}
-                            empty="No sessions were played in these days."
-                        />
-                    </div>
-                )}
+            {(showByDay || parts.sessionsByHour) && (
+                // Side by side when both are shown, else one across the page.
+                <div
+                    className={cn(
+                        'grid items-start gap-4',
+                        showByDay && parts.sessionsByHour && 'xl:grid-cols-2',
+                    )}
+                >
+                    {showByDay && (
+                        <div className="rounded-xl border bg-card p-4 text-card-foreground shadow-sm">
+                            <h3 className="mb-3 font-medium">
+                                {byPeriod.title}
+                            </h3>
+                            <ColumnChart
+                                series={[WALK_INS, RESERVATIONS]}
+                                columns={byPeriod.columns}
+                                empty="No sessions were played in these days."
+                            />
+                        </div>
+                    )}
 
+                    {parts.sessionsByHour && (
+                        <div className="rounded-xl border bg-card p-4 text-card-foreground shadow-sm">
+                            <h3 className="mb-3 font-medium">
+                                Sessions by the hour they started
+                            </h3>
+                            <ColumnChart
+                                series={[
+                                    { label: 'Sessions', fill: 'bg-chart-1' },
+                                ]}
+                                columns={analytics.byHour.map((row, index) => ({
+                                    key: String(row.hour),
+                                    label: `${formatHour(row.hour)} to ${formatHour((row.hour + 1) % 24)}`,
+                                    tick: labelled(
+                                        index,
+                                        analytics.byHour.length,
+                                    )
+                                        ? formatHour(row.hour)
+                                        : null,
+                                    values: [row.sessions],
+                                }))}
+                                empty={
+                                    analytics.days > 1
+                                        ? 'No sessions were played in these days.'
+                                        : customRange === null
+                                          ? 'No sessions have been played today.'
+                                          : 'No sessions were played that day.'
+                                }
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* One day can't show which days of the week are busy. */}
+            {parts.busiestTimes && analytics.days > 1 && (
                 <div className="rounded-xl border bg-card p-4 text-card-foreground shadow-sm">
-                    <h3 className="mb-3 font-medium">
-                        Sessions by the hour they started
-                    </h3>
-                    <ColumnChart
-                        series={[{ label: 'Sessions', fill: 'bg-chart-1' }]}
-                        columns={analytics.byHour.map((row, index) => ({
-                            key: String(row.hour),
-                            label: `${formatHour(row.hour)} to ${formatHour((row.hour + 1) % 24)}`,
+                    <h3 className="font-medium">Busiest times</h3>
+                    <p className="mb-3 text-sm text-muted-foreground">
+                        {analytics.days <= 7
+                            ? 'How many sessions started in each hour, by day of the week.'
+                            : 'How many sessions start in each hour on an average day of the week.'}
+                    </p>
+                    <BusiestTimes
+                        hours={analytics.byHour.map((row, index) => ({
+                            hour: row.hour,
                             tick: labelled(index, analytics.byHour.length)
                                 ? formatHour(row.hour)
                                 : null,
-                            values: [row.sessions],
                         }))}
-                        empty={
-                            analytics.days > 1
-                                ? 'No sessions were played in these days.'
-                                : customRange === null
-                                  ? 'No sessions have been played today.'
-                                  : 'No sessions were played that day.'
-                        }
+                        rows={analytics.byWeekday}
                     />
                 </div>
+            )}
 
-                {/* One day can't show which days of the week are busy. */}
-                {analytics.days > 1 && (
-                    <div className="rounded-xl border bg-card p-4 text-card-foreground shadow-sm xl:col-span-2">
-                        <h3 className="font-medium">Busiest times</h3>
-                        <p className="mb-3 text-sm text-muted-foreground">
-                            {analytics.days <= 7
-                                ? 'How many sessions started in each hour, by day of the week.'
-                                : 'How many sessions start in each hour on an average day of the week.'}
-                        </p>
-                        <BusiestTimes
-                            hours={analytics.byHour.map((row, index) => ({
-                                hour: row.hour,
-                                tick: labelled(index, analytics.byHour.length)
-                                    ? formatHour(row.hour)
-                                    : null,
-                            }))}
-                            rows={analytics.byWeekday}
-                        />
-                    </div>
-                )}
-
-                {/* Beside the hours chart for today alone, else full width. */}
-                <div
-                    className={cn(
-                        'rounded-xl border bg-card p-4 text-card-foreground shadow-sm',
-                        analytics.days > 1 && 'xl:col-span-2',
-                    )}
-                >
+            {parts.closedTime && (
+                <div className="rounded-xl border bg-card p-4 text-card-foreground shadow-sm">
                     <h3 className="font-medium">Time out of order</h3>
                     <p className="mb-3 text-sm text-muted-foreground">
                         How long each lane was closed, up to now.
@@ -626,7 +674,7 @@ function Analytics({
                     </p>
                     <LaneClosedTime rows={analytics.closedTime} />
                 </div>
-            </div>
+            )}
         </section>
     );
 }
@@ -635,21 +683,23 @@ function Analytics({
  * Where staff land after logging in: what the lanes and the line are doing
  * and what needs dealing with now, both of which refresh themselves, and how
  * the venue has been doing. A user who has not been given a role is shown
- * none of it.
+ * none of it, and nobody sees a part an admin has turned off.
  */
 export default function Dashboard({
     rightNow,
     attention,
     analytics,
+    parts,
     periods,
     customRange,
     maxCustomDays,
     serverNow,
 }: {
-    // All three null for a user with no role.
+    // Each null for a user with no role, and while its part is turned off.
     rightNow: DashboardRightNow | null;
     attention: DashboardAttention | null;
     analytics: DashboardAnalytics | null;
+    parts: DashboardParts;
     // The numbers of days the analytics can cover; 1 is today alone.
     periods: number[];
     // The first and last day picked instead, if any.
@@ -662,6 +712,7 @@ export default function Dashboard({
     });
 
     const now = useServerClock(serverNow);
+    const { auth } = usePage().props;
 
     return (
         <>
@@ -672,9 +723,7 @@ export default function Dashboard({
                     Dashboard
                 </h1>
 
-                {rightNow === null ||
-                attention === null ||
-                analytics === null ? (
+                {auth.user.role === null ? (
                     <p className="flex items-center gap-2 text-sm text-muted-foreground">
                         <CalendarClock
                             aria-hidden
@@ -684,16 +733,29 @@ export default function Dashboard({
                         nothing to show here. Ask an admin to set one under
                         Settings, Users.
                     </p>
+                ) : rightNow === null &&
+                  attention === null &&
+                  analytics === null ? (
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <EyeOff aria-hidden className="size-4 shrink-0" />
+                        Every part of the dashboard has been turned off. An
+                        admin can turn them on under Settings, Dashboard.
+                    </p>
                 ) : (
                     <>
-                        <RightNow rightNow={rightNow} />
-                        <NeedsAttention attention={attention} now={now} />
-                        <Analytics
-                            analytics={analytics}
-                            periods={periods}
-                            customRange={customRange}
-                            maxCustomDays={maxCustomDays}
-                        />
+                        {rightNow !== null && <RightNow rightNow={rightNow} />}
+                        {attention !== null && (
+                            <NeedsAttention attention={attention} now={now} />
+                        )}
+                        {analytics !== null && (
+                            <Analytics
+                                analytics={analytics}
+                                parts={parts}
+                                periods={periods}
+                                customRange={customRange}
+                                maxCustomDays={maxCustomDays}
+                            />
+                        )}
                     </>
                 )}
             </div>

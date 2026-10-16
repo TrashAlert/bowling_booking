@@ -7,8 +7,10 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { cn, toUrl } from '@/lib/utils';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit as editBranding } from '@/routes/branding';
+import { edit as editDashboardParts } from '@/routes/dashboard-parts';
 import { edit as editDeposit } from '@/routes/deposit';
 import { edit as editLanes } from '@/routes/lanes';
+import { edit as editOnlineWaitlist } from '@/routes/online-waitlist';
 import { edit as editOpeningHours } from '@/routes/opening-hours';
 import { edit } from '@/routes/profile';
 import { edit as editRules } from '@/routes/rules';
@@ -46,13 +48,21 @@ const navGroups: NavGroup[] = [
         adminOnly: true,
         items: [
             { title: 'Booking rules', href: editRules(), icon: null },
+            {
+                title: 'Online waitlist',
+                href: editOnlineWaitlist(),
+                icon: null,
+            },
             { title: 'Deposit', href: editDeposit(), icon: null },
         ],
     },
     {
         title: 'Staff',
         adminOnly: true,
-        items: [{ title: 'Users', href: users(), icon: null }],
+        items: [
+            { title: 'Users', href: users(), icon: null },
+            { title: 'Dashboard', href: editDashboardParts(), icon: null },
+        ],
     },
 ];
 

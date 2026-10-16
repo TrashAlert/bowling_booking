@@ -201,6 +201,19 @@ export type ReservationLimits = {
     searchLimit: number;
 };
 
+// The parts of the staff dashboard an admin can turn off under Settings.
+export type DashboardPart =
+    | 'rightNow'
+    | 'attention'
+    | 'totals'
+    | 'sessionsByDay'
+    | 'sessionsByHour'
+    | 'busiestTimes'
+    | 'closedTime';
+
+// Whether each part is shown.
+export type DashboardParts = Record<DashboardPart, boolean>;
+
 // What the lanes and the line are doing at this moment, counted as the lane
 // board shows them. Times are ISO 8601 strings in UTC.
 export type DashboardRightNow = {
@@ -252,6 +265,8 @@ export type DashboardAttention = {
         until: string | null;
         overdue: boolean;
     }[];
+    // True while an admin has closed joining the waitlist online.
+    onlineJoiningClosed: boolean;
 };
 
 // How the venue has done over the last so many days, today included. Days

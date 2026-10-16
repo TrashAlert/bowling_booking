@@ -18,7 +18,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatMoney, formatWait, formatWhen } from '@/lib/format';
-import type { OpeningStatus, SessionRules } from '@/types';
+import type {
+    OnlineWaitlistStatus,
+    OpeningStatus,
+    SessionRules,
+} from '@/types';
 
 // How often the page asks again how long the wait is.
 const POLL_INTERVAL_MS = 30_000;
@@ -73,23 +77,24 @@ function WaitEstimate({
 }
 
 /**
- * What the page shows instead of the form while the venue is closed.
+ * What the page shows instead of the form while nobody can join: the venue
+ * is closed, or an admin has closed joining online.
  */
-function Closed({ opensAt }: { opensAt: string | null }) {
+function Closed({
+    title,
+    description,
+}: {
+    title: string;
+    description: string;
+}) {
     return (
         <>
             <Head title="Join the waitlist" />
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-xl">
-                        We are closed right now
-                    </CardTitle>
-                    <CardDescription>
-                        {opensAt
-                            ? `We open again ${formatWhen(opensAt)}. You can join the waitlist then.`
-                            : 'Please check back later.'}
-                    </CardDescription>
+                    <CardTitle className="text-xl">{title}</CardTitle>
+                    <CardDescription>{description}</CardDescription>
                 </CardHeader>
             </Card>
         </>
@@ -111,6 +116,7 @@ export default function WaitlistJoin({
     lanesOpen,
     deviceLimit,
     opening,
+    online,
 }: {
     session: SessionRules;
     checkInMinutes: number;
@@ -125,6 +131,8 @@ export default function WaitlistJoin({
     deviceLimit: { max: number; reached: boolean };
     // Joining is only possible while the venue is open.
     opening: OpeningStatus;
+    // And while an admin lets customers join online at all.
+    online: OnlineWaitlistStatus;
 }) {
     const { currencySymbol } = usePage().props;
     const deposit = formatMoney(depositCents, currencySymbol);
@@ -137,11 +145,29 @@ export default function WaitlistJoin({
     const noLane = !lanesOpen || waitMinutes[minutes] === null;
 
     usePoll(POLL_INTERVAL_MS, {
-        only: ['waitMinutes', 'lanesOpen', 'deviceLimit', 'opening'],
+        only: ['waitMinutes', 'lanesOpen', 'deviceLimit', 'opening', 'online'],
     });
 
+    if (!online.open) {
+        return (
+            <Closed
+                title="Joining online is closed"
+                description={online.message}
+            />
+        );
+    }
+
     if (!opening.isOpen) {
-        return <Closed opensAt={opening.opensAt} />;
+        return (
+            <Closed
+                title="We are closed right now"
+                description={
+                    opening.opensAt
+                        ? `We open again ${formatWhen(opening.opensAt)}. You can join the waitlist then.`
+                        : 'Please check back later.'
+                }
+            />
+        );
     }
 
     return (

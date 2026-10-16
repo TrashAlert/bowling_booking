@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\DashboardSettings;
 use App\Services\StaffDashboard;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -26,27 +27,33 @@ class DashboardController extends Controller
      * day ("from" and "to") that ends today at the latest. A span that can't
      * be used is sent back with the reason.
      *
-     * A user who has not been given a role is told nothing about the venue.
+     * A user who has not been given a role is told nothing about the venue,
+     * and nobody is shown a part an admin has turned off.
      * Each part is only worked out when the page asks for it, so refreshing
      * what needs attention does not count the analytics again.
      */
-    public function __invoke(Request $request, StaffDashboard $dashboard): Response
+    public function __invoke(Request $request, StaffDashboard $dashboard, DashboardSettings $settings): Response
     {
         $isStaff = $request->user()->isStaff();
         $span = $this->chosenSpan($request);
+        $parts = $settings->shown();
+        $withClosedTime = $parts['closedTime'];
 
         $days = in_array($request->integer('days'), StaffDashboard::PERIODS, true)
             ? $request->integer('days')
             : StaffDashboard::DEFAULT_PERIOD;
 
         return Inertia::render('dashboard', [
-            'rightNow' => fn () => $isStaff ? $dashboard->rightNow() : null,
-            'attention' => fn () => $isStaff ? $dashboard->attention() : null,
+            'rightNow' => fn () => $isStaff && $parts['rightNow'] ? $dashboard->rightNow() : null,
+            'attention' => fn () => $isStaff && $parts['attention'] ? $dashboard->attention() : null,
             'analytics' => fn () => match (true) {
-                ! $isStaff => null,
-                $span !== null => $dashboard->analyticsBetween($span['from'], $span['to']),
-                default => $dashboard->analytics($days),
+                ! $isStaff, ! $settings->showsAnalytics($parts) => null,
+                $span !== null => $dashboard->analyticsBetween($span['from'], $span['to'], $withClosedTime),
+                default => $dashboard->analytics($days, $withClosedTime),
             },
+            // Which parts an admin has turned on under Settings, Dashboard.
+            // A part turned off is not worked out, and comes as null.
+            'parts' => $parts,
             'periods' => StaffDashboard::PERIODS,
             // The span chosen by its first and last day; null for the last
             // so many days.

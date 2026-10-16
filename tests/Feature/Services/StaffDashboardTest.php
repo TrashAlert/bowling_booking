@@ -9,6 +9,7 @@ use App\Services\BookingService;
 use App\Services\LaneClosures;
 use App\Services\StaffDashboard;
 use App\Services\WaitlistService;
+use App\Services\WaitlistSettings;
 
 test('a reservation on a lane that has gone out of order is listed as needing a move', function () {
     $this->travelTo(venueTime('2026-10-07 14:00'));
@@ -243,4 +244,12 @@ test('a chosen span counts only the days from its first to its last', function (
         ->and($analytics['days'])->toBe(30)
         ->and($analytics['byDay'][0]['date'])->toBe('2026-09-01')
         ->and($analytics['byDay'][29]['date'])->toBe('2026-09-30');
+});
+
+test('needs attention says while joining the waitlist online is closed', function () {
+    app(WaitlistSettings::class)->setOnlineJoining(false, null);
+
+    $attention = app(StaffDashboard::class)->attention();
+
+    expect($attention['onlineJoiningClosed'])->toBeTrue();
 });

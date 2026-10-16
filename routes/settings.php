@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\Settings\BrandingController;
+use App\Http\Controllers\Settings\DashboardPartsController;
 use App\Http\Controllers\Settings\DepositController;
 use App\Http\Controllers\Settings\LaneController;
+use App\Http\Controllers\Settings\OnlineWaitlistController;
 use App\Http\Controllers\Settings\OpeningHoursController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\RulesController;
@@ -44,8 +46,14 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::get('settings/rules', [RulesController::class, 'edit'])->name('rules.edit');
     Route::put('settings/rules', [RulesController::class, 'update'])->name('rules.update');
 
+    Route::get('settings/online-waitlist', [OnlineWaitlistController::class, 'edit'])->name('online-waitlist.edit');
+    Route::put('settings/online-waitlist', [OnlineWaitlistController::class, 'update'])->name('online-waitlist.update');
+
     Route::get('settings/deposit', [DepositController::class, 'edit'])->name('deposit.edit');
     Route::put('settings/deposit', [DepositController::class, 'update'])->name('deposit.update');
+
+    Route::get('settings/dashboard', [DashboardPartsController::class, 'edit'])->name('dashboard-parts.edit');
+    Route::put('settings/dashboard', [DashboardPartsController::class, 'update'])->name('dashboard-parts.update');
 
     Route::get('settings/users', [UserController::class, 'index'])->name('users.index');
     Route::post('settings/users', [UserController::class, 'store'])->name('users.store');

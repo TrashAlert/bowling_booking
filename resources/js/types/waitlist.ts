@@ -1,5 +1,9 @@
 import type { WaitlistStatus } from './staff';
 
+// Whether customers can join the waitlist online, as an admin has set it,
+// and what they are told while they cannot.
+export type OnlineWaitlistStatus = { open: boolean; message: string };
+
 // What became of the deposit paid to join the waitlist online.
 export type DepositOutcome = 'held' | 'applied' | 'refund_due' | 'forfeited';
 

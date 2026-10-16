@@ -48,6 +48,15 @@ test('the front page says whether a deposit is asked for to join the waitlist', 
     'the deposit is turned off' => [false],
 ]);
 
+test('the front page says while joining the waitlist online is closed, and why', function () {
+    app(WaitlistSettings::class)->setOnlineJoining(false, 'Closed tonight for a private event.');
+
+    $response = $this->get(route('home'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('onlineWaitlist', ['open' => false, 'message' => 'Closed tonight for a private event.']));
+});
+
 test('the front page says whether the venue is open and when that changes', function () {
     openDaily('10:00', '23:00');
     $this->travelTo(venueTime('2026-10-05 23:30'));

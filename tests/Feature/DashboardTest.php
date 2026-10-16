@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\LaneRepair;
 use App\Models\User;
+use App\Services\DashboardSettings;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('guests are redirected to the login page', function () {
@@ -37,6 +39,7 @@ test('staff see what needs attention and the last seven days of analytics', func
             'lateReservations' => [],
             'requests' => ['waiting' => 0, 'callNow' => 0],
             'closedLanes' => [],
+            'onlineJoiningClosed' => false,
         ])
         ->where('analytics.days', 7)
         ->has('analytics.byDay', 7)
@@ -81,6 +84,38 @@ test('a span of days that cannot be used is turned away with the reason', functi
     'more than a year' => [['from' => '2025-10-14', 'to' => '2026-10-15'], 'from', 'Pick at most 366 days.'],
     'only a first day' => [['from' => '2026-10-01'], 'to', 'Pick the last day as well.'],
 ]);
+
+test('parts an admin has turned off are neither shown nor worked out', function () {
+    app(DashboardSettings::class)->save(['rightNow' => false, 'attention' => false]);
+
+    $response = $this->actingAs(User::factory()->staff()->create())->get(route('dashboard'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('rightNow', null)
+        ->where('attention', null)
+        ->where('parts.rightNow', false)
+        ->where('parts.totals', true)
+        ->has('analytics.byDay'));
+});
+
+test('the analytics are not worked out while every part of them is off', function () {
+    app(DashboardSettings::class)->save(array_fill_keys(DashboardSettings::ANALYTICS_PARTS, false));
+
+    $response = $this->actingAs(User::factory()->staff()->create())->get(route('dashboard'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('analytics', null)
+        ->has('attention.requests'));
+});
+
+test('time out of order is left out while its part is off', function () {
+    LaneRepair::factory()->create();
+    app(DashboardSettings::class)->save(['closedTime' => false]);
+
+    $response = $this->actingAs(User::factory()->staff()->create())->get(route('dashboard'));
+
+    $response->assertInertia(fn (Assert $page) => $page->where('analytics.closedTime', []));
+});
 
 test('the app version is shared with every page', function () {
     config(['bowling.version' => '9.8.7']);

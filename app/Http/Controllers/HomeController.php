@@ -9,6 +9,7 @@ use App\Services\LaneInventory;
 use App\Services\OpeningHours;
 use App\Services\WaitlistDeposits;
 use App\Services\WaitlistEstimate;
+use App\Services\WaitlistSettings;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -25,9 +26,12 @@ class HomeController extends Controller
      * someone arriving now. When every lane is out of order the page says
      * that instead of a count.
      */
-    public function __invoke(WaitlistEstimate $estimate, LaneInventory $inventory, OpeningHours $hours, LaneAvailability $availability, WaitlistDeposits $deposits): Response
+    public function __invoke(WaitlistEstimate $estimate, LaneInventory $inventory, OpeningHours $hours, LaneAvailability $availability, WaitlistDeposits $deposits, WaitlistSettings $settings): Response
     {
         return Inertia::render('welcome', [
+            // Whether customers can join the waitlist online, and what they
+            // are told while not.
+            'onlineWaitlist' => $settings->onlineStatus(),
             'lanes' => [
                 'free' => $estimate->lanesFreeNow(),
                 'total' => $inventory->count(),

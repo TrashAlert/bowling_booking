@@ -170,6 +170,26 @@ test('no one can join the waitlist while the venue is closed', function () {
     $this->assertDatabaseCount('waitlist_entries', 0);
 });
 
+test('while joining online is closed the page says so with the admin\'s message', function () {
+    app(WaitlistSettings::class)->setOnlineJoining(false, 'Closed tonight for a private event.');
+
+    $response = $this->get(route('waitlist.join'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('online', ['open' => false, 'message' => 'Closed tonight for a private event.']));
+});
+
+test('no one can join online while an admin has closed it', function () {
+    Lane::factory()->create();
+    app(WaitlistSettings::class)->setOnlineJoining(false, null);
+
+    $response = $this->post(route('waitlist.store'), joinForm());
+
+    $response->assertSessionHasErrors(['closed' => 'We are not taking groups online right now. Please ask our staff at the counter.']);
+    $this->assertDatabaseCount('waitlist_deposits', 0);
+    $this->assertDatabaseCount('waitlist_entries', 0);
+});
+
 test('a party can join during opening hours', function () {
     openDaily('10:00', '23:00');
     $this->travelTo(venueTime('2026-10-05 22:30'));

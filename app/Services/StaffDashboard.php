@@ -53,13 +53,14 @@ class StaffDashboard
 
     public const DEFAULT_PERIOD = 7;
 
-    // When the app began logging repairs, in version 1.1. Repairs from before
+    // When the app began logging repairs, in version 1.2. Repairs from before
     // it were never recorded.
     private const REPAIRS_RECORDED_SINCE = '2026-10-15T03:17:18+00:00';
 
     public function __construct(
         private BookingRequests $requests,
         private LaneBoard $board,
+        private WaitlistSettings $waitlistSettings,
     ) {}
 
     /**
@@ -113,13 +114,15 @@ class StaffDashboard
      * A reservation with a lane out of order has to be moved before it can
      * check in. One that has started without checking in becomes a no-show
      * once its grace runs out. A lane out of order stays closed until staff
-     * reopen it, and is overdue once its estimate has passed.
+     * reopen it, and is overdue once its estimate has passed. Joining the
+     * waitlist online stays closed until an admin opens it again.
      *
      * @return array{
      *     reservationsToMove: list<array{id: int, customerName: string, startsAt: string, closedLaneNumbers: list<int>}>,
      *     lateReservations: list<array{id: int, customerName: string, startsAt: string, noShowAt: string, laneNumbers: list<int>}>,
      *     requests: array{waiting: int, callNow: int},
      *     closedLanes: list<array{number: int, reason: string|null, until: string|null, overdue: bool}>,
+     *     onlineJoiningClosed: bool,
      * }
      */
     public function attention(): array
@@ -165,6 +168,7 @@ class StaffDashboard
                     'overdue' => $lane->closed_until !== null && $lane->closed_until <= $now,
                 ])
                 ->all(),
+            'onlineJoiningClosed' => ! $this->waitlistSettings->onlineJoiningOpen(),
         ];
     }
 
@@ -173,11 +177,11 @@ class StaffDashboard
      *
      * @return Analytics
      */
-    public function analytics(int $days): array
+    public function analytics(int $days, bool $withClosedTime = true): array
     {
         $today = CarbonImmutable::now(config('bowling.timezone'));
 
-        return $this->analyticsBetween($today->subDays($days - 1)->toDateString(), $today->toDateString());
+        return $this->analyticsBetween($today->subDays($days - 1)->toDateString(), $today->toDateString(), $withClosedTime);
     }
 
     /**
@@ -195,11 +199,13 @@ class StaffDashboard
      *
      * "closedTime" is how long each lane was out of use, up to now: under
      * repair, and closed for a short job such as re-oiling. Repairs are only
-     * known from when the log of them began, "repairsRecordedSince".
+     * known from when the log of them began, "repairsRecordedSince". With
+     * $withClosedTime false it is left empty and not worked out, for a
+     * dashboard that does not show it.
      *
      * @return Analytics
      */
-    public function analyticsBetween(string $firstDay, string $lastDay): array
+    public function analyticsBetween(string $firstDay, string $lastDay, bool $withClosedTime = true): array
     {
         $timezone = config('bowling.timezone');
         $from = CarbonImmutable::parse($firstDay, $timezone)->startOfDay();
@@ -208,45 +214,39 @@ class StaffDashboard
 
         $byDay = [];
         $weekdays = [];
+        $weekdayOf = [];
 
         foreach (range(0, $days - 1) as $offset) {
             $day = $from->addDays($offset);
             $byDay[$day->toDateString()] = ['walkIns' => 0, 'reservations' => 0];
             $weekdays[$day->dayOfWeek] = ($weekdays[$day->dayOfWeek] ?? 0) + 1;
+            $weekdayOf[$day->toDateString()] = $day->dayOfWeek;
         }
 
         $byHour = [];
         $byWeekdayHour = [];
         $people = 0;
-        $laneMinutes = 0;
+        $laneSeconds = 0;
         $noShows = 0;
         $cancelled = 0;
 
-        foreach ($this->bookingsStartingBetween($from, $until) as $booking) {
-            $startedAt = $booking->allocations->min('starts_at')->setTimezone($timezone);
-            $day = $startedAt->toDateString();
-            $isWalkIn = $booking->source === BookingSource::WalkIn;
+        foreach ($this->bookingTotalsBetween($from, $until) as $totals) {
+            $count = (int) $totals->bookings;
+            $isWalkIn = $totals->source === BookingSource::WalkIn->value;
 
-            // A lane the booking gained later can fall in the period when
-            // its first lane time does not.
-            if (! isset($byDay[$day])) {
-                continue;
-            }
-
-            if ($booking->status === BookingStatus::NoShow) {
-                $noShows++;
-            } elseif ($booking->status === BookingStatus::Cancelled) {
+            if ($totals->status === BookingStatus::NoShow->value) {
+                $noShows += $count;
+            } elseif ($totals->status === BookingStatus::Cancelled->value) {
                 // A walk-in's booking is cancelled when it misses its call,
                 // which the waitlist numbers already count.
-                $cancelled += $isWalkIn ? 0 : 1;
+                $cancelled += $isWalkIn ? 0 : $count;
             } else {
-                $byDay[$day][$isWalkIn ? 'walkIns' : 'reservations']++;
-                $byHour[$startedAt->hour] = ($byHour[$startedAt->hour] ?? 0) + 1;
-                $byWeekdayHour[$startedAt->dayOfWeek][$startedAt->hour] = ($byWeekdayHour[$startedAt->dayOfWeek][$startedAt->hour] ?? 0) + 1;
-                $people += $booking->party_size;
-                $laneMinutes += (int) round($booking->allocations
-                    ->where('status', AllocationStatus::Active)
-                    ->sum(fn (LaneAllocation $allocation) => $allocation->starts_at->diffInMinutes($allocation->ends_at)));
+                $hour = (int) $totals->hour;
+                $byDay[$totals->day][$isWalkIn ? 'walkIns' : 'reservations'] += $count;
+                $byHour[$hour] = ($byHour[$hour] ?? 0) + $count;
+                $byWeekdayHour[$weekdayOf[$totals->day]][$hour] = ($byWeekdayHour[$weekdayOf[$totals->day]][$hour] ?? 0) + $count;
+                $people += (int) $totals->people;
+                $laneSeconds += (float) $totals->active_seconds;
             }
         }
 
@@ -261,7 +261,7 @@ class StaffDashboard
                 'reservations' => array_sum(array_column($byDay, 'reservations')),
             ],
             'people' => $people,
-            'laneMinutes' => $laneMinutes,
+            'laneMinutes' => (int) round($laneSeconds / 60),
             'noShows' => $noShows,
             'cancelled' => $cancelled,
             'waitlist' => $this->waitlistBetween($from, $until),
@@ -275,7 +275,7 @@ class StaffDashboard
                 'days' => $weekdays[$weekday] ?? 0,
                 'sessions' => array_map(fn (int $hour) => $byWeekdayHour[$weekday][$hour] ?? 0, $hours),
             ], OpeningHours::WEEK),
-            'closedTime' => $this->closedTimeBetween($from, $until),
+            'closedTime' => $withClosedTime ? $this->closedTimeBetween($from, $until) : [],
             'repairsRecordedSince' => self::REPAIRS_RECORDED_SINCE,
         ];
     }
@@ -357,26 +357,56 @@ class StaffDashboard
     }
 
     /**
-     * Every booking with lane time starting in the period, whatever became
-     * of it, except one still waiting to check in or be paid for.
+     * The bookings whose first lane time starts in the period, whatever
+     * became of them, except those still waiting to check in or be paid for.
+     * They are added up in the database, not loaded one by one, so a year of
+     * them stays quick: one row for each venue day and hour, how the party
+     * came and what became of it, with how many bookings, people and seconds
+     * of lane time in play.
      *
-     * @return Collection<int, Booking>
+     * @return Collection<int, object{day: string, hour: int, source: string, status: string, bookings: int, people: int, active_seconds: float}>
      */
-    private function bookingsStartingBetween(CarbonImmutable $from, CarbonImmutable $until): Collection
+    private function bookingTotalsBetween(CarbonImmutable $from, CarbonImmutable $until): Collection
     {
+        $timezone = config('bowling.timezone');
+
+        // A date is written to a query as its own clock time, so the venue's
+        // days have to be turned into UTC first.
+        $from = $from->utc();
+        $until = $until->utc();
+
+        // Each booking with any lane time in the period: when its lane time
+        // first starts, and how long its lanes were in play.
+        $laneTime = LaneAllocation::query()
+            ->toBase()
+            ->whereIn('booking_id', LaneAllocation::query()
+                ->toBase()
+                ->select('booking_id')
+                ->where('starts_at', '>=', $from)
+                ->where('starts_at', '<', $until))
+            ->groupBy('booking_id')
+            ->select('booking_id')
+            ->selectRaw('min(starts_at) as starts_at')
+            ->selectRaw('coalesce(sum(extract(epoch from ends_at - starts_at)) filter (where status = ?), 0) as active_seconds', [AllocationStatus::Active->value]);
+
         return Booking::query()
-            ->whereIn('status', [
+            ->toBase()
+            ->joinSub($laneTime, 'lane_time', 'lane_time.booking_id', '=', 'bookings.id')
+            ->whereIn('bookings.status', [
                 BookingStatus::CheckedIn->value,
                 BookingStatus::Completed->value,
                 BookingStatus::NoShow->value,
                 BookingStatus::Cancelled->value,
             ])
-            // A date is written to a query as its own clock time, so the
-            // venue's days have to be turned into UTC first.
-            ->whereHas('allocations', function (Builder $query) use ($from, $until) {
-                $query->where('starts_at', '>=', $from->utc())->where('starts_at', '<', $until->utc());
-            })
-            ->with('allocations')
+            // A lane the booking gained later can fall in the period when its
+            // first lane time does not; such a booking belongs to another day.
+            ->where('lane_time.starts_at', '>=', $from)
+            ->where('lane_time.starts_at', '<', $until)
+            ->selectRaw("to_char(lane_time.starts_at at time zone ?, 'YYYY-MM-DD') as day", [$timezone])
+            ->selectRaw('extract(hour from lane_time.starts_at at time zone ?)::int as hour', [$timezone])
+            ->addSelect('bookings.source', 'bookings.status')
+            ->selectRaw('count(*) as bookings, sum(bookings.party_size) as people, sum(lane_time.active_seconds) as active_seconds')
+            ->groupBy('day', 'hour', 'bookings.source', 'bookings.status')
             ->get();
     }
 
@@ -440,22 +470,24 @@ class StaffDashboard
      */
     private function waitlistBetween(CarbonImmutable $from, CarbonImmutable $until): array
     {
-        $entries = WaitlistEntry::query()
+        // Added up in the database, so a year of groups stays quick.
+        $totals = WaitlistEntry::query()
+            ->toBase()
             ->where('created_at', '>=', $from->utc())
             ->where('created_at', '<', $until->utc())
-            ->withExists('deposit')
-            ->get();
-
-        $waits = $entries
-            ->whereNotNull('called_at')
-            ->map(fn (WaitlistEntry $entry) => $entry->created_at->diffInSeconds($entry->called_at));
+            ->selectRaw('count(*) as joined')
+            ->selectRaw('count(*) filter (where exists (select 1 from waitlist_deposits where waitlist_deposits.waitlist_entry_id = waitlist_entries.id)) as joined_online')
+            ->selectRaw('count(*) filter (where status = ?) as missed_calls', [WaitlistStatus::Skipped->value])
+            ->selectRaw('count(*) filter (where status = ?) as left_line', [WaitlistStatus::Left->value])
+            ->selectRaw('avg(extract(epoch from called_at - created_at)) as average_wait_seconds')
+            ->first();
 
         return [
-            'joined' => $entries->count(),
-            'joinedOnline' => $entries->where('deposit_exists', true)->count(),
-            'missedCalls' => $entries->where('status', WaitlistStatus::Skipped)->count(),
-            'left' => $entries->where('status', WaitlistStatus::Left)->count(),
-            'averageWaitMinutes' => $waits->isEmpty() ? null : (int) round($waits->avg() / 60),
+            'joined' => (int) $totals->joined,
+            'joinedOnline' => (int) $totals->joined_online,
+            'missedCalls' => (int) $totals->missed_calls,
+            'left' => (int) $totals->left_line,
+            'averageWaitMinutes' => $totals->average_wait_seconds === null ? null : (int) round($totals->average_wait_seconds / 60),
         ];
     }
 }

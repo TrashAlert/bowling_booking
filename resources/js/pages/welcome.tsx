@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import { reserve } from '@/routes';
 import { join } from '@/routes/waitlist';
 import { formatTime, formatWhen } from '@/lib/format';
-import type { OpeningStatus } from '@/types';
+import type { OnlineWaitlistStatus, OpeningStatus } from '@/types';
 
 // How often the page asks again how many lanes are free.
 const POLL_INTERVAL_MS = 30_000;
@@ -26,6 +26,8 @@ const POLL_INTERVAL_MS = 30_000;
 // confirm by phone.
 const actions = [
     {
+        // Can be closed by an admin under Settings, Online waitlist.
+        closable: true,
         icon: Users,
         title: 'Join the waitlist',
         description:
@@ -37,6 +39,7 @@ const actions = [
         href: join(),
     },
     {
+        closable: false,
         icon: CalendarClock,
         title: 'Reserve a lane',
         description:
@@ -150,6 +153,7 @@ export default function Welcome({
     lanesOpen,
     depositAsked,
     opening,
+    onlineWaitlist,
 }: {
     lanes: LaneCount;
     // False while every lane is out of order.
@@ -157,11 +161,19 @@ export default function Welcome({
     // False while the deposit for joining the waitlist online is turned off.
     depositAsked: boolean;
     opening: OpeningStatus;
+    // Whether customers can join the waitlist online at all.
+    onlineWaitlist: OnlineWaitlistStatus;
 }) {
     const { name } = usePage().props;
 
     usePoll(POLL_INTERVAL_MS, {
-        only: ['lanes', 'lanesOpen', 'depositAsked', 'opening'],
+        only: [
+            'lanes',
+            'lanesOpen',
+            'depositAsked',
+            'opening',
+            'onlineWaitlist',
+        ],
     });
 
     return (
@@ -214,17 +226,29 @@ export default function Welcome({
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="text-sm text-muted-foreground">
-                                    {depositAsked
-                                        ? item.note
-                                        : (item.noteWithoutDeposit ??
-                                          item.note)}
+                                    {item.closable && !onlineWaitlist.open
+                                        ? onlineWaitlist.message
+                                        : depositAsked
+                                          ? item.note
+                                          : (item.noteWithoutDeposit ??
+                                            item.note)}
                                 </CardContent>
                                 <CardFooter>
-                                    <Button className="w-full" asChild>
-                                        <Link href={item.href}>
-                                            {item.action}
-                                        </Link>
-                                    </Button>
+                                    {item.closable && !onlineWaitlist.open ? (
+                                        <Button
+                                            className="w-full"
+                                            variant="outline"
+                                            disabled
+                                        >
+                                            Joining online is closed
+                                        </Button>
+                                    ) : (
+                                        <Button className="w-full" asChild>
+                                            <Link href={item.href}>
+                                                {item.action}
+                                            </Link>
+                                        </Button>
+                                    )}
                                 </CardFooter>
                             </Card>
                         ))}
