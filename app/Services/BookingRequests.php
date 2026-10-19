@@ -23,7 +23,10 @@ class BookingRequests
     // The most handled requests listed for looking back.
     private const HANDLED_LIMIT = 50;
 
-    public function __construct(private BookingService $bookings) {}
+    public function __construct(
+        private BookingService $bookings,
+        private ActivityLog $log,
+    ) {}
 
     /**
      * Save a customer's request. $contactFrom and $contactUntil are "HH:MM"
@@ -39,17 +42,28 @@ class BookingRequests
         ?string $contactUntil,
         ?string $notes,
     ): BookingRequest {
-        return BookingRequest::create([
-            'name' => $name,
-            'phone' => $phone,
-            'party_size' => $partySize,
-            'minutes' => $minutes,
-            'starts_at' => $startsAt->utc(),
-            'contact_from' => $contactFrom,
-            'contact_until' => $contactUntil,
-            'notes' => $notes,
-            'status' => BookingRequestStatus::Pending,
-        ]);
+        return DB::transaction(function () use ($name, $phone, $partySize, $minutes, $startsAt, $contactFrom, $contactUntil, $notes) {
+            $request = BookingRequest::create([
+                'name' => $name,
+                'phone' => $phone,
+                'party_size' => $partySize,
+                'minutes' => $minutes,
+                'starts_at' => $startsAt->utc(),
+                'contact_from' => $contactFrom,
+                'contact_until' => $contactUntil,
+                'notes' => $notes,
+                'status' => BookingRequestStatus::Pending,
+            ]);
+
+            $this->log->record('request.sent', sprintf(
+                '%s asked for a reservation on %s, for %s.',
+                $this->log->party($name, $partySize),
+                $this->log->when($startsAt),
+                $this->log->length($minutes),
+            ), $request, customerName: $name);
+
+            return $request;
+        });
     }
 
     /**
@@ -86,6 +100,8 @@ class BookingRequests
                 'handled_at' => now(),
             ]);
 
+            $this->log->record('request.confirmed', "Confirmed {$request->name}'s reservation request.", $request);
+
             return $booking;
         });
     }
@@ -106,6 +122,10 @@ class BookingRequests
                 'handled_by' => $by->id,
                 'handled_at' => now(),
             ]);
+
+            $this->log->record('request.declined', blank($reason)
+                ? "Declined {$request->name}'s reservation request."
+                : "Declined {$request->name}'s reservation request: {$reason}", $request);
 
             return $request;
         });

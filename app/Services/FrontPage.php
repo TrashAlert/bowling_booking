@@ -87,7 +87,7 @@ class FrontPage
     {
         foreach (array_intersect_key($texts, self::TEXTS) as $name => $text) {
             blank($text)
-                ? Setting::query()->where('key', $this->key($name))->delete()
+                ? Setting::forget($this->key($name))
                 : Setting::updateOrCreate(['key' => $this->key($name)], ['value' => trim($text)]);
         }
     }
@@ -147,7 +147,7 @@ class FrontPage
     public function announce(?string $message, ?string $until): void
     {
         if (blank($message)) {
-            Setting::query()->whereIn('key', [self::ANNOUNCEMENT, self::ANNOUNCEMENT_UNTIL])->delete();
+            Setting::forget(self::ANNOUNCEMENT, self::ANNOUNCEMENT_UNTIL);
 
             return;
         }
@@ -155,7 +155,7 @@ class FrontPage
         Setting::updateOrCreate(['key' => self::ANNOUNCEMENT], ['value' => trim($message)]);
 
         blank($until)
-            ? Setting::query()->where('key', self::ANNOUNCEMENT_UNTIL)->delete()
+            ? Setting::forget(self::ANNOUNCEMENT_UNTIL)
             : Setting::updateOrCreate(['key' => self::ANNOUNCEMENT_UNTIL], ['value' => $until]);
     }
 
@@ -202,7 +202,7 @@ class FrontPage
     {
         $old = $this->coverPath();
 
-        Setting::query()->where('key', self::COVER_PATH)->delete();
+        Setting::forget(self::COVER_PATH);
 
         if ($old !== null) {
             Storage::disk(self::DISK)->delete($old);

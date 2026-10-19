@@ -29,6 +29,7 @@ class WaitlistDeposits
         private OpeningHours $hours,
         private WaitlistSettings $settings,
         private DepositPaymentProvider $payments,
+        private ActivityLog $log,
     ) {}
 
     /**
@@ -60,19 +61,28 @@ class WaitlistDeposits
     {
         $this->ensureOpen();
 
-        $deposit = WaitlistDeposit::create([
-            'name' => $name,
-            'phone' => $phone,
-            'minutes' => $minutes,
-            'party_size' => $partySize,
-            'amount_cents' => $this->amountDue($minutes),
-        ]);
+        return DB::transaction(function () use ($name, $phone, $minutes, $partySize) {
+            $deposit = WaitlistDeposit::create([
+                'name' => $name,
+                'phone' => $phone,
+                'minutes' => $minutes,
+                'party_size' => $partySize,
+                'amount_cents' => $this->amountDue($minutes),
+            ]);
 
-        if ($deposit->amount_cents === 0) {
-            $this->confirmPayment($deposit);
-        }
+            if ($deposit->amount_cents === 0) {
+                $this->confirmPayment($deposit);
+            } else {
+                $this->log->record('deposit.asked', sprintf(
+                    '%s started joining online, for %s; a %s deposit is due.',
+                    $this->log->party($name, $partySize),
+                    $this->log->length($minutes),
+                    $this->log->money($deposit->amount_cents),
+                ), $deposit, customerName: $name);
+            }
 
-        return $deposit->refresh();
+            return $deposit->refresh();
+        });
     }
 
     /**
@@ -155,10 +165,21 @@ class WaitlistDeposits
             route('waitlist.deposit.notice', ['provider' => $this->payments->name()]),
         );
 
-        $deposit->update([
-            'payment_provider' => $this->payments->name(),
-            'payment_reference' => $start->reference,
-        ]);
+        DB::transaction(function () use ($deposit, $start) {
+            $deposit->update([
+                'payment_provider' => $this->payments->name(),
+                'payment_reference' => $start->reference,
+            ]);
+
+            if (! $start->paid) {
+                $this->log->record('deposit.sent_to_pay', sprintf(
+                    'Sent %s to %s to pay the %s deposit.',
+                    $deposit->name,
+                    $this->payments->name(),
+                    $this->log->money($deposit->amount_cents),
+                ), $deposit, customerName: $deposit->name);
+            }
+        });
 
         return $start;
     }
@@ -188,6 +209,15 @@ class WaitlistDeposits
             );
 
             $deposit->update(['paid_at' => now(), 'waitlist_entry_id' => $entry->id]);
+
+            if ($deposit->amount_cents > 0) {
+                $this->log->record('deposit.paid', sprintf(
+                    '%s paid the %s deposit%s.',
+                    $deposit->name,
+                    $this->log->money($deposit->amount_cents),
+                    $deposit->payment_provider === null ? '' : " through {$deposit->payment_provider}",
+                ), $deposit, customerName: $deposit->name);
+            }
 
             return $entry;
         });

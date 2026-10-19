@@ -15,3 +15,6 @@ Schedule::command('bookings:complete-finished')->everyMinute()->withoutOverlappi
 
 // Skip parties who missed their call, then call the next ones for free lanes.
 Schedule::command('waitlist:process')->everyMinute()->withoutOverlapping();
+
+// Remove activity log lines older than 18 months, once a day.
+Schedule::command('activity-log:prune')->dailyAt('04:00')->timezone(config('bowling.timezone'));

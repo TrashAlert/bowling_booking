@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AllocationStatus;
 use App\Models\WaitlistEntry;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Minishlink\WebPush\Subscription;
 use Minishlink\WebPush\WebPush;
 use Throwable;
@@ -16,6 +17,8 @@ use Throwable;
  */
 class WaitlistPush
 {
+    public function __construct(private ActivityLog $log) {}
+
     /**
      * Whether notifications can be sent at all: they need the key pair made
      * with "php artisan push:keys".
@@ -32,10 +35,14 @@ class WaitlistPush
      */
     public function subscribe(WaitlistEntry $entry, string $endpoint, string $publicKey, string $authToken): void
     {
-        $entry->update(['push_subscription' => [
-            'endpoint' => $endpoint,
-            'keys' => ['p256dh' => $publicKey, 'auth' => $authToken],
-        ]]);
+        DB::transaction(function () use ($entry, $endpoint, $publicKey, $authToken) {
+            $entry->update(['push_subscription' => [
+                'endpoint' => $endpoint,
+                'keys' => ['p256dh' => $publicKey, 'auth' => $authToken],
+            ]]);
+
+            $this->log->record('waitlist.notifications_on', "{$this->log->party($entry->customer->name, $entry->party_size)} turned on notifications.", $entry, customerName: $entry->customer->name);
+        });
     }
 
     /**

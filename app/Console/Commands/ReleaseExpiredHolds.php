@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ActivityLog;
 use App\Services\BookingCleanup;
 use Illuminate\Console\Command;
 
@@ -11,9 +12,9 @@ class ReleaseExpiredHolds extends Command
 
     protected $description = 'Free lanes held by online bookings that were never paid';
 
-    public function handle(BookingCleanup $cleanup): int
+    public function handle(BookingCleanup $cleanup, ActivityLog $log): int
     {
-        $count = $cleanup->releaseExpiredHolds();
+        $count = $log->asSystem('Scheduler', fn () => $cleanup->releaseExpiredHolds());
 
         $this->info("Released {$count} expired hold(s).");
 

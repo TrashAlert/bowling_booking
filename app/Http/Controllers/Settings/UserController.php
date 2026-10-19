@@ -8,8 +8,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\UserStoreRequest;
 use App\Http\Requests\Settings\UserUpdateRequest;
 use App\Models\User;
+use App\Services\ActivityLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -57,8 +59,10 @@ class UserController extends Controller
      * An admin saving an account vouches for its email, as when creating
      * one. That also lets back in a user who was shut out as unconfirmed.
      */
-    public function update(UserUpdateRequest $request, User $user): RedirectResponse
+    public function update(UserUpdateRequest $request, User $user, ActivityLog $log): RedirectResponse
     {
+        $before = ['Name' => $user->name, 'Email' => $user->email, 'Role' => $user->role?->value];
+
         $user->forceFill([
             'name' => $request->string('name')->toString(),
             'email' => $request->string('email')->toString(),
@@ -70,7 +74,21 @@ class UserController extends Controller
             $user->password = $request->string('password')->toString();
         }
 
-        $user->save();
+        DB::transaction(function () use ($user, $before, $request, $log) {
+            $user->save();
+
+            $after = ['Name' => $user->name, 'Email' => $user->email, 'Role' => $user->role?->value];
+            $changes = collect($before)
+                ->map(fn (?string $value, string $field) => [$value, $after[$field]])
+                ->reject(fn (array $pair) => $pair[0] === $pair[1])
+                // Only that it was reset, never the password itself.
+                ->when($request->filled('password'), fn ($changes) => $changes->put('Password', ['old password', 'new password']))
+                ->all();
+
+            if ($changes !== []) {
+                $log->record('user.changed', "Changed {$user->name}'s account.", $user, $changes);
+            }
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name was updated.', ['name' => $user->name])]);
 
@@ -81,11 +99,15 @@ class UserController extends Controller
      * Remove a user. Nobody can remove their own account, so there is always
      * an admin left.
      */
-    public function destroy(Request $request, User $user): RedirectResponse
+    public function destroy(Request $request, User $user, ActivityLog $log): RedirectResponse
     {
         abort_if($user->is($request->user()), 403, __('You cannot remove your own account.'));
 
-        $user->delete();
+        DB::transaction(function () use ($user, $log) {
+            $user->delete();
+
+            $log->record('user.removed', "Removed {$user->name} ({$user->email}).", $user);
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name was removed.', ['name' => $user->name])]);
 

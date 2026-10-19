@@ -10,9 +10,11 @@ use Illuminate\Support\Facades\DB;
 
 class BookingCleanup
 {
+    public function __construct(private ActivityLog $log) {}
+
     /**
-     * Online bookings that were never paid: free their lanes and cancel them.
-     * Returns how many lane allocations were released.
+     * Lanes held for a called walk-in that never checked in: free them and
+     * cancel the booking. Returns how many lane allocations were released.
      */
     public function releaseExpiredHolds(): int
     {
@@ -23,14 +25,24 @@ class BookingCleanup
                 ->where('status', AllocationStatus::Held->value)
                 ->where('held_until', '<', $cutoff);
 
-            $bookingIds = (clone $expired)->pluck('booking_id')->filter()->unique();
+            $held = (clone $expired)->with(['lane', 'booking.customer'])->get();
 
             $released = $expired->update(['status' => AllocationStatus::Released->value]);
 
             Booking::query()
-                ->whereIn('id', $bookingIds)
+                ->whereIn('id', $held->pluck('booking_id')->filter()->unique())
                 ->where('status', BookingStatus::Pending->value)
                 ->update(['status' => BookingStatus::Cancelled->value]);
+
+            foreach ($held->groupBy('booking_id') as $allocations) {
+                $booking = $allocations->first()->booking;
+
+                $this->log->record('waitlist.hold_released', sprintf(
+                    'Freed %s held for %s: the time to check in ran out.',
+                    $this->log->lanes($allocations->pluck('lane.number')),
+                    $booking === null ? 'a party' : $this->log->party($booking->customer->name, $booking->party_size),
+                ), $booking);
+            }
 
             return $released;
         });
@@ -46,7 +58,7 @@ class BookingCleanup
         $cutoff = now()->subMinutes(config('bowling.no_show_grace_minutes'));
 
         return DB::transaction(function () use ($cutoff) {
-            $bookingIds = Booking::query()
+            $bookings = Booking::query()
                 ->where('status', BookingStatus::Confirmed->value)
                 ->whereHas('allocations', function ($query) use ($cutoff) {
                     $query->where('status', AllocationStatus::Active->value)
@@ -55,20 +67,33 @@ class BookingCleanup
                 // Locked, so a check-in at the same moment either lands first
                 // (and the booking is no longer picked up here) or waits.
                 ->lockForUpdate()
-                ->pluck('id');
+                ->get();
 
-            if ($bookingIds->isEmpty()) {
+            if ($bookings->isEmpty()) {
                 return 0;
             }
 
+            $bookings->load(['customer', 'allocations.lane']);
+
             LaneAllocation::query()
-                ->whereIn('booking_id', $bookingIds)
+                ->whereIn('booking_id', $bookings->modelKeys())
                 ->where('status', AllocationStatus::Active->value)
                 ->update(['status' => AllocationStatus::Released->value]);
 
-            return Booking::query()
-                ->whereIn('id', $bookingIds)
+            $marked = Booking::query()
+                ->whereKey($bookings->modelKeys())
                 ->update(['status' => BookingStatus::NoShow->value]);
+
+            foreach ($bookings as $booking) {
+                $this->log->record('reservation.no_show', sprintf(
+                    'Marked %s as a no-show for %s and freed %s.',
+                    $this->log->party($booking->customer->name, $booking->party_size),
+                    $this->log->when($booking->allocations->min('starts_at')),
+                    $this->log->lanes($booking->allocations->pluck('lane.number')),
+                ), $booking);
+            }
+
+            return $marked;
         });
     }
 
@@ -78,11 +103,34 @@ class BookingCleanup
      */
     public function completeFinishedSessions(): int
     {
-        return Booking::query()
-            ->where('status', BookingStatus::CheckedIn->value)
-            ->whereDoesntHave('allocations', function ($query) {
-                $query->occupying()->where('ends_at', '>', now());
-            })
-            ->update(['status' => BookingStatus::Completed->value]);
+        return DB::transaction(function () {
+            $bookings = Booking::query()
+                ->where('status', BookingStatus::CheckedIn->value)
+                ->whereDoesntHave('allocations', function ($query) {
+                    $query->occupying()->where('ends_at', '>', now());
+                })
+                ->lockForUpdate()
+                ->get();
+
+            if ($bookings->isEmpty()) {
+                return 0;
+            }
+
+            $bookings->load(['customer', 'allocations.lane']);
+
+            $completed = Booking::query()
+                ->whereKey($bookings->modelKeys())
+                ->update(['status' => BookingStatus::Completed->value]);
+
+            foreach ($bookings as $booking) {
+                $this->log->record('session.completed', sprintf(
+                    '%s finished playing on %s.',
+                    $this->log->party($booking->customer->name, $booking->party_size),
+                    $this->log->lanes($booking->allocations->pluck('lane.number')->unique()),
+                ), $booking);
+            }
+
+            return $completed;
+        });
     }
 }

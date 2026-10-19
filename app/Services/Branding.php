@@ -102,7 +102,7 @@ class Branding
         $key = self::CONTACT[$detail] ?? throw new InvalidArgumentException("There is no contact detail called [{$detail}].");
 
         blank($value)
-            ? Setting::query()->where('key', $key)->delete()
+            ? Setting::forget($key)
             : Setting::updateOrCreate(['key' => $key], ['value' => $value]);
     }
 
@@ -130,7 +130,7 @@ class Branding
         $key = self::SOCIAL[$network] ?? throw new InvalidArgumentException("There is no social network called [{$network}].");
 
         if (blank($typed)) {
-            Setting::query()->where('key', $key)->delete();
+            Setting::forget($key);
 
             return;
         }
@@ -209,7 +209,7 @@ class Branding
     public function setBrandColor(?string $color): void
     {
         if (blank($color)) {
-            Setting::query()->where('key', self::BRAND_COLOR)->delete();
+            Setting::forget(self::BRAND_COLOR);
 
             return;
         }
@@ -283,7 +283,7 @@ class Branding
     {
         $old = $this->logoPath();
 
-        Setting::query()->where('key', self::LOGO_PATH)->delete();
+        Setting::forget(self::LOGO_PATH);
 
         if ($old !== null) {
             Storage::disk(self::DISK)->delete($old);

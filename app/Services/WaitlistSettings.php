@@ -56,7 +56,7 @@ class WaitlistSettings
         Setting::updateOrCreate(['key' => self::ONLINE_OPEN], ['value' => $open]);
 
         blank($message)
-            ? Setting::query()->where('key', self::CLOSED_MESSAGE)->delete()
+            ? Setting::forget(self::CLOSED_MESSAGE)
             : Setting::updateOrCreate(['key' => self::CLOSED_MESSAGE], ['value' => trim($message)]);
     }
 

@@ -34,6 +34,8 @@ class LaneClosures
     // PostgreSQL's error code when our no-overlap rule blocks a change.
     private const OVERLAP_ERROR = '23P01';
 
+    public function __construct(private ActivityLog $log) {}
+
     /**
      * Close a lane for a short job. It starts now if the lane is free, and
      * otherwise when whatever is on the lane now has finished.
@@ -59,7 +61,7 @@ class LaneClosures
 
             try {
                 // A savepoint, so a refused insert leaves the outer transaction usable.
-                return DB::transaction(fn () => LaneAllocation::create([
+                $closure = DB::transaction(fn () => LaneAllocation::create([
                     'lane_id' => $lane->id,
                     'starts_at' => $startsAt,
                     'ends_at' => $startsAt->addMinutes($minutes),
@@ -77,6 +79,17 @@ class LaneClosures
 
                 throw $e;
             }
+
+            $this->log->record('lane.closed_for_work', sprintf(
+                'Closed lane %d for %s, %s, from %s to %s.',
+                $lane->number,
+                mb_strtolower($reason->label()),
+                $this->spell($minutes),
+                $this->log->time($closure->starts_at),
+                $this->log->time($closure->ends_at),
+            ), $lane);
+
+            return $closure;
         });
     }
 
@@ -99,11 +112,11 @@ class LaneClosures
 
             $this->endPending($lane);
 
-            foreach ($this->partiesCalledTo($lane) as $entry) {
-                $this->returnToLine($entry);
-            }
+            $returned = $this->partiesCalledTo($lane)->filter(fn (WaitlistEntry $entry) => $this->returnToLine($entry));
 
-            if (! $lane->repairs()->ongoing()->exists()) {
+            $alreadyClosed = $lane->repairs()->ongoing()->exists();
+
+            if (! $alreadyClosed) {
                 $lane->repairs()->create(['started_at' => now()->startOfSecond()]);
             }
 
@@ -112,6 +125,22 @@ class LaneClosures
                 'closed_reason' => LaneClosureReason::Repair,
                 'closed_until' => $days === null ? null : now()->addDays($days),
             ]);
+
+            // Written last, once every change is made.
+            $this->log->record('lane.closed_for_repair', sprintf(
+                '%s lane %d for repair, %s.',
+                $alreadyClosed ? 'Gave a new estimate for' : 'Closed',
+                $lane->number,
+                $days === null ? 'until reopened' : 'expected back in about '.trans_choice(':count day|:count days', $days),
+            ), $lane);
+
+            foreach ($returned as $entry) {
+                $this->log->record('waitlist.returned', sprintf(
+                    'Put %s back in the line: lane %d, which it was called to, closed for repair.',
+                    $this->log->party($entry->customer->name, $entry->party_size),
+                    $lane->number,
+                ), $entry);
+            }
 
             return $lane;
         });
@@ -145,6 +174,14 @@ class LaneClosures
                 throw $e;
             }
 
+            $this->log->record('lane.closure_extended', sprintf(
+                'Kept lane %d closed for %s %s longer, until %s.',
+                $lane->number,
+                mb_strtolower($closure->closure_reason->label()),
+                $this->spell($minutes),
+                $this->log->time($closure->ends_at),
+            ), $lane);
+
             return $closure;
         });
     }
@@ -157,8 +194,9 @@ class LaneClosures
     {
         return DB::transaction(function () use ($lane) {
             $lane = Lane::query()->lockForUpdate()->findOrFail($lane->id);
+            $wasOutOfOrder = ! $lane->isOpen();
 
-            $this->endPending($lane);
+            $ended = $this->endPending($lane);
 
             $lane->repairs()->ongoing()->update(['ended_at' => now()->startOfSecond()]);
 
@@ -167,6 +205,16 @@ class LaneClosures
                 'closed_reason' => null,
                 'closed_until' => null,
             ]);
+
+            $this->log->record('lane.reopened', sprintf(
+                'Reopened lane %d%s.',
+                $lane->number,
+                match (true) {
+                    $wasOutOfOrder => ' after repair',
+                    $ended->isNotEmpty() => ', ending its '.mb_strtolower($ended->first()->closure_reason->label()).' early',
+                    default => '',
+                },
+            ), $lane);
 
             return $lane;
         });
@@ -186,10 +234,20 @@ class LaneClosures
             return;
         }
 
+        $wasFrom = $closure->starts_at;
+
         $closure->update([
             'starts_at' => $startsAt,
             'ends_at' => $startsAt->addSeconds((int) $closure->starts_at->diffInSeconds($closure->ends_at)),
         ]);
+
+        $this->log->record('lane.closure_moved', sprintf(
+            'Lane %d\'s %s starts at %s instead of %s, as the session before it ended early.',
+            $lane->number,
+            mb_strtolower($closure->closure_reason->label()),
+            $this->log->time($startsAt),
+            $this->log->time($wasFrom),
+        ), $lane);
     }
 
     /**
@@ -248,14 +306,15 @@ class LaneClosures
      * Undo a party's call: free every lane held for it and make it a
      * waiting party again. It keeps the time it joined, so it is still
      * ahead of everyone who joined after it, and a deposit it paid stays
-     * held as if it had never been called.
+     * held as if it had never been called. Returns false when it was no
+     * longer called, so nothing changed.
      */
-    private function returnToLine(WaitlistEntry $entry): void
+    private function returnToLine(WaitlistEntry $entry): bool
     {
         $entry = WaitlistEntry::query()->lockForUpdate()->find($entry->id);
 
         if ($entry?->status !== WaitlistStatus::Called || $entry->booking?->status !== BookingStatus::Pending) {
-            return;
+            return false;
         }
 
         $entry->booking->allocations()
@@ -265,22 +324,30 @@ class LaneClosures
         $entry->booking->update(['status' => BookingStatus::Cancelled]);
 
         $entry->update(['status' => WaitlistStatus::Waiting, 'called_at' => null, 'booking_id' => null]);
+
+        return true;
     }
 
     /**
      * End the lane's short closure now if it has started, or drop it if not.
      * Times are kept to the second, and a closure ended in the second it
-     * began would have no length left, so that one is dropped too.
+     * began would have no length left, so that one is dropped too. Returns
+     * the closures ended or dropped.
+     *
+     * @return Collection<int, LaneAllocation>
      */
-    private function endPending(Lane $lane): void
+    private function endPending(Lane $lane): Collection
     {
         $endedAt = now()->startOfSecond();
+        $closures = $this->pending($lane)->get();
 
-        foreach ($this->pending($lane)->get() as $closure) {
+        foreach ($closures as $closure) {
             $closure->update($endedAt > $closure->starts_at
                 ? ['ends_at' => $endedAt]
                 : ['status' => AllocationStatus::Released]);
         }
+
+        return $closures;
     }
 
     // A length of time in words, e.g. "30 minutes" or "1 hour".

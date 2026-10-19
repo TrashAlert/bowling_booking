@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ActivityLog;
 use App\Services\BookingCleanup;
 use Illuminate\Console\Command;
 
@@ -11,9 +12,9 @@ class CompleteFinishedSessions extends Command
 
     protected $description = 'Mark checked-in bookings whose lane time has ended as completed';
 
-    public function handle(BookingCleanup $cleanup): int
+    public function handle(BookingCleanup $cleanup, ActivityLog $log): int
     {
-        $count = $cleanup->completeFinishedSessions();
+        $count = $log->asSystem('Scheduler', fn () => $cleanup->completeFinishedSessions());
 
         $this->info("Completed {$count} booking(s).");
 

@@ -18,6 +18,7 @@ class WaitlistService
     public function __construct(
         private BookingService $bookings,
         private LaneAvailability $availability,
+        private ActivityLog $log,
     ) {
     }
 
@@ -38,7 +39,15 @@ class WaitlistService
         return DB::transaction(function () use ($name, $phone, $minutes, $partySize) {
             $customer = Customer::create(['name' => $name, 'phone' => $phone]);
 
-            return $this->join($customer, $minutes, $partySize);
+            $entry = $this->join($customer, $minutes, $partySize);
+
+            $this->log->record('waitlist.joined', sprintf(
+                '%s joined the line, for %s.',
+                $this->log->party($name, $partySize),
+                $this->log->length($minutes),
+            ), $entry, customerName: $name);
+
+            return $entry;
         });
     }
 
@@ -118,6 +127,12 @@ class WaitlistService
 
             $entry->update(['status' => WaitlistStatus::Seated, 'seated_at' => now()]);
 
+            $this->log->record('waitlist.seated', sprintf(
+                'Seated %s on %s.',
+                $this->log->party($entry->customer->name, $entry->party_size),
+                $this->log->lanes($entry->booking->allocations()->with('lane')->get()->pluck('lane.number')),
+            ), $entry);
+
             return $entry;
         });
     }
@@ -125,13 +140,13 @@ class WaitlistService
     // The party left or removed themselves from the line.
     public function leave(WaitlistEntry $entry): void
     {
-        $this->removeFromLine($entry, WaitlistStatus::Left);
+        $this->removeFromLine($entry, WaitlistStatus::Left, 'waitlist.left', '%s left the line.');
     }
 
     // Staff gave up on a party, e.g. they were called and didn't turn up.
     public function skip(WaitlistEntry $entry): void
     {
-        $this->removeFromLine($entry, WaitlistStatus::Skipped);
+        $this->removeFromLine($entry, WaitlistStatus::Skipped, 'waitlist.skipped', 'Skipped %s.');
     }
 
     /**
@@ -148,7 +163,7 @@ class WaitlistService
             ->get();
 
         foreach ($expired as $entry) {
-            $this->removeFromLine($entry, WaitlistStatus::Skipped);
+            $this->removeFromLine($entry, WaitlistStatus::Skipped, 'waitlist.missed_call', '%s did not check in in time and lost its turn.');
         }
 
         return $expired->count();
@@ -183,6 +198,12 @@ class WaitlistService
                     'called_at' => now(),
                 ]);
 
+                $this->log->record('waitlist.called', sprintf(
+                    'Called %s to %s.',
+                    $this->log->party($entry->customer->name, $entry->party_size),
+                    $this->log->lanes($booking->allocations->pluck('lane.number')),
+                ), $entry);
+
                 return $entry;
             });
         } catch (NoLaneAvailableException) {
@@ -191,10 +212,11 @@ class WaitlistService
         }
     }
 
-    // Take a party out of the line and free any lanes held for them.
-    private function removeFromLine(WaitlistEntry $entry, WaitlistStatus $newStatus): void
+    // Take a party out of the line and free any lanes held for them, and log
+    // it as $action, with the party's name put into $summary.
+    private function removeFromLine(WaitlistEntry $entry, WaitlistStatus $newStatus, string $action, string $summary): void
     {
-        DB::transaction(function () use ($entry, $newStatus) {
+        DB::transaction(function () use ($entry, $newStatus, $action, $summary) {
             $entry = WaitlistEntry::query()->lockForUpdate()->find($entry->id);
 
             if (! $entry || ! in_array($entry->status->value, WaitlistStatus::inLine(), true)) {
@@ -210,6 +232,8 @@ class WaitlistService
             }
 
             $entry->update(['status' => $newStatus]);
+
+            $this->log->record($action, sprintf($summary, $this->log->party($entry->customer->name, $entry->party_size)), $entry, customerName: $entry->customer->name);
         });
     }
 }

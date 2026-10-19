@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ActivityLog;
 use App\Services\WaitlistPush;
 use App\Services\WaitlistService;
 use Illuminate\Console\Command;
@@ -12,10 +13,9 @@ class ProcessWaitlist extends Command
 
     protected $description = 'Skip parties who missed their call, then call the next parties for free lanes';
 
-    public function handle(WaitlistService $waitlist, WaitlistPush $push): int
+    public function handle(WaitlistService $waitlist, WaitlistPush $push, ActivityLog $log): int
     {
-        $skipped = $waitlist->skipExpiredCalls();
-        $called = $waitlist->callNextParties();
+        [$skipped, $called] = $log->asSystem('Scheduler', fn () => [$waitlist->skipExpiredCalls(), $waitlist->callNextParties()]);
 
         $push->notifyCalled($called);
 

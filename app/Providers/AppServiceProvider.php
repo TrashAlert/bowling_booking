@@ -2,16 +2,23 @@
 
 namespace App\Providers;
 
+use App\Models\User;
+use App\Services\ActivityLog;
 use App\Services\Branding;
 use App\Services\Payments\DepositPaymentProvider;
 use App\Services\VenueRules;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Inertia\ExceptionResponse;
 use Inertia\Inertia;
@@ -33,6 +40,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // One for the whole request or command, so a scheduled job can put
+        // every line it writes down to the scheduler.
+        $this->app->singleton(ActivityLog::class);
+
         $this->app->bind(WebPush::class, fn () => new WebPush(['VAPID' => [
             'subject' => config('services.web_push.subject'),
             'publicKey' => config('services.web_push.public_key'),
@@ -61,6 +72,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureTrustedProxies();
         $this->applySavedRules();
         $this->configureErrorPages();
+        $this->logSignIns();
 
         // The page every screen starts from carries the business name, for
         // the browser tab's title, and its logo, for the tab's icon.
@@ -108,6 +120,44 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return $response->render('error', ['status' => $status])->withSharedData();
+        });
+    }
+
+    /**
+     * Write logging in, failed attempts and logging out to the activity log.
+     * A failed attempt is put down to whoever typed the email, as typed.
+     */
+    protected function logSignIns(): void
+    {
+        Event::listen(function (Login $event) {
+            $user = $event->user;
+            $log = app(ActivityLog::class);
+
+            if ($user instanceof User) {
+                $log->as(ActivityLog::ACTOR_USER, $user->id, $user->name, fn () => $log->record('auth.logged_in', "{$user->name} logged in.", $user));
+            }
+        });
+
+        Event::listen(function (Logout $event) {
+            $user = $event->user;
+            $log = app(ActivityLog::class);
+
+            if ($user instanceof User) {
+                $log->as(ActivityLog::ACTOR_USER, $user->id, $user->name, fn () => $log->record('auth.logged_out', "{$user->name} logged out.", $user));
+            }
+        });
+
+        Event::listen(function (Failed $event) {
+            $email = Str::limit((string) ($event->credentials['email'] ?? ''), 100);
+            $log = app(ActivityLog::class);
+
+            $log->as(ActivityLog::ACTOR_UNKNOWN, null, $email === '' ? 'Unknown' : $email, fn () => $log->record(
+                'auth.login_failed',
+                $event->user === null
+                    ? "Failed login as {$email}: no account has that email."
+                    : "Failed login as {$email}: wrong password.",
+                $event->user instanceof User ? $event->user : null,
+            ));
         });
     }
 

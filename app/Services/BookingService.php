@@ -27,6 +27,7 @@ class BookingService
     public function __construct(
         private LaneAvailability $availability,
         private LaneClosures $closures,
+        private ActivityLog $log,
     ) {
     }
 
@@ -124,6 +125,14 @@ class BookingService
 
             $this->occupy($booking, $lanes, $startsAt, $startsAt->addMinutes($minutes));
 
+            $this->log->record('reservation.made', sprintf(
+                'Reserved %s for %s on %s, for %s.',
+                $this->log->lanes($lanes->pluck('number')),
+                $this->log->party($customer->name, $partySize),
+                $this->log->when($startsAt),
+                $this->log->length($minutes),
+            ), $booking);
+
             return $booking->load('allocations.lane');
         });
     }
@@ -172,6 +181,8 @@ class BookingService
                 throw new InvalidStateException('Only a confirmed reservation can be changed.');
             }
 
+            $before = $this->reservationDetails($booking->load('customer', 'allocations.lane'));
+
             // The old rows go first so the reservation doesn't block itself.
             // If a new lane turns out to be taken, the transaction puts them back.
             $booking->allocations()->delete();
@@ -181,6 +192,16 @@ class BookingService
             $booking->update(['minutes' => $minutes, 'party_size' => $partySize, 'notes' => $notes]);
 
             $this->occupy($booking, $lanes, $startsAt, $startsAt->addMinutes($minutes));
+
+            $after = $this->reservationDetails($booking->load('customer', 'allocations.lane'));
+            $changes = collect($before)
+                ->map(fn ($value, string $field) => [$value, $after[$field]])
+                ->reject(fn (array $pair) => $pair[0] === $pair[1])
+                // Only that the number changed, not what it was or is.
+                ->map(fn (array $pair, string $field) => $field === 'Phone' ? ['old number', 'new number'] : $pair)
+                ->all();
+
+            $this->log->record('reservation.changed', "Changed {$name}'s reservation.", $booking, $changes);
 
             return $booking->load('allocations.lane');
         });
@@ -204,6 +225,14 @@ class BookingService
             $booking->closures()->occupying()->update(['status' => AllocationStatus::Released->value]);
 
             $booking->update(['status' => BookingStatus::Cancelled]);
+
+            $startsAt = $booking->allocations()->oldest('starts_at')->value('starts_at');
+
+            $this->log->record('reservation.cancelled', sprintf(
+                'Cancelled %s\'s reservation for %s.',
+                $booking->customer->name,
+                $this->log->when($startsAt ?? now()),
+            ), $booking);
 
             return $booking;
         });
@@ -251,6 +280,15 @@ class BookingService
             }
 
             $booking->update(['minutes' => $booking->minutes + $minutes]);
+
+            $this->log->record('session.extended', sprintf(
+                'Extended %s\'s session on %s by %s, to %s.',
+                $booking->customer->name,
+                $this->log->lanes($allocations->pluck('lane.number')),
+                $this->log->length($minutes),
+                // The lanes already have their new end time.
+                $this->log->time($allocations->max('ends_at')),
+            ), $booking);
 
             return $booking->load('allocations.lane');
         });
@@ -303,6 +341,14 @@ class BookingService
             if (! $stillPlaying) {
                 $booking->update(['status' => BookingStatus::Completed]);
             }
+
+            $this->log->record('session.ended_early', sprintf(
+                'Ended %s\'s session on lane %d early, at %s instead of %s.',
+                $booking->customer->name,
+                $lane->number,
+                $this->log->time(now()),
+                $this->log->time($wasDueToEnd),
+            ), $booking);
 
             return $booking;
         });
@@ -377,6 +423,15 @@ class BookingService
                 $this->occupy($booking, $gained, $current->min('starts_at')->max(now()->startOfSecond()), $current->max('ends_at'));
             }
 
+            $from = Lane::withTrashed()->whereKey($current->pluck('lane_id'))->pluck('number');
+
+            $this->log->record('reservation.moved', sprintf(
+                'Moved %s\'s reservation from %s to %s.',
+                $booking->customer->name,
+                $this->log->lanes($from),
+                $this->log->lanes($lanes->pluck('number')),
+            ), $booking, ['Lanes' => [$from->sort()->values()->all(), $lanes->pluck('number')->sort()->values()->all()]]);
+
             return $booking->load('allocations.lane');
         });
     }
@@ -421,8 +476,34 @@ class BookingService
 
             $booking->update(['status' => BookingStatus::CheckedIn]);
 
+            $this->log->record('reservation.checked_in', sprintf(
+                'Checked in %s for %s.',
+                $this->log->party($booking->customer->name, $booking->party_size),
+                $this->log->when($startsAt ?? now()),
+            ), $booking);
+
             return $booking;
         });
+    }
+
+    /**
+     * What the log shows of a reservation, to compare before and after a
+     * change. The phone number is only noted as changed, never written.
+     *
+     * @return array<string, mixed>
+     */
+    private function reservationDetails(Booking $booking): array
+    {
+        return [
+            'Name' => $booking->customer->name,
+            // Compared by fingerprint, so the number itself is never logged.
+            'Phone' => substr(hash('sha256', (string) $booking->customer->phone), 0, 8),
+            'Start' => $this->log->when($booking->allocations->min('starts_at')),
+            'Length' => $this->log->length($booking->minutes),
+            'People' => $booking->party_size,
+            'Lanes' => $booking->allocations->pluck('lane.number')->sort()->values()->all(),
+            'Notes' => $booking->notes,
+        ];
     }
 
     /**

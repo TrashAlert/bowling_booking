@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\ActivityLogController;
 use App\Http\Controllers\Settings\BrandingController;
 use App\Http\Controllers\Settings\DashboardPartsController;
 use App\Http\Controllers\Settings\DepositController;
@@ -59,6 +60,9 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
 
     Route::get('settings/dashboard', [DashboardPartsController::class, 'edit'])->name('dashboard-parts.edit');
     Route::put('settings/dashboard', [DashboardPartsController::class, 'update'])->name('dashboard-parts.update');
+
+    Route::get('settings/activity-log', [ActivityLogController::class, 'index'])->name('activity-log.index');
+    Route::post('settings/activity-log/verify', [ActivityLogController::class, 'verify'])->name('activity-log.verify');
 
     Route::get('settings/users', [UserController::class, 'index'])->name('users.index');
     Route::post('settings/users', [UserController::class, 'store'])->name('users.store');

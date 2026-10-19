@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\DB;
  */
 class OpeningHours
 {
+    public function __construct(private ActivityLog $log) {}
+
     /**
      * The days of the week, Monday first, as Carbon numbers them.
      *
@@ -66,6 +68,8 @@ class OpeningHours
     public function save(array $days): void
     {
         DB::transaction(function () use ($days) {
+            $before = $this->inWords();
+
             foreach (self::WEEK as $weekday) {
                 $hours = $days[$weekday] ?? null;
 
@@ -74,7 +78,36 @@ class OpeningHours
                     'closes_at' => $hours['closes'] ?? null,
                 ]);
             }
+
+            $after = $this->inWords();
+            $changes = collect($after)
+                ->map(fn (string $hours, string $day) => [$before[$day] ?? 'not set', $hours])
+                ->reject(fn (array $pair) => $pair[0] === $pair[1])
+                ->all();
+
+            if ($changes !== []) {
+                $this->log->record('settings.opening_hours', 'Changed the opening hours.', changes: $changes);
+            }
         });
+    }
+
+    /**
+     * Each day's hours in words, e.g. "10:00 to 23:00" or "Closed", keyed by
+     * the day's name, Monday first. Empty while no hours are set.
+     *
+     * @return array<string, string>
+     */
+    private function inWords(): array
+    {
+        if (! $this->isSet()) {
+            return [];
+        }
+
+        return collect($this->week())
+            ->mapWithKeys(fn (array $day) => [
+                CarbonImmutable::now()->startOfWeek()->addDays(($day['weekday'] + 6) % 7)->format('l') => $day['opens'] === null ? 'Closed' : "{$day['opens']} to {$day['closes']}",
+            ])
+            ->all();
     }
 
     public function isOpenAt(CarbonInterface $moment): bool

@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\DB;
  */
 class LaneInventory
 {
+    public function __construct(private ActivityLog $log) {}
+
     public function count(): int
     {
         return Lane::query()->count();
@@ -33,6 +35,8 @@ class LaneInventory
     public function resize(int $count): void
     {
         DB::transaction(function () use ($count) {
+            $before = $this->count();
+
             $busy = Lane::query()
                 ->where('number', '>', $count)
                 ->whereHas('allocations', function (Builder $query) {
@@ -70,6 +74,12 @@ class LaneInventory
                     $lane->status = LaneStatus::Open;
                     $lane->restore();
                 }
+            }
+
+            if ($before !== $count) {
+                $this->log->record('lanes.resized', "Changed the number of lanes from {$before} to {$count}.", changes: [
+                    'Lanes' => [$before, $count],
+                ]);
             }
         });
     }

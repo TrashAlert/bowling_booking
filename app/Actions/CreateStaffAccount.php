@@ -4,10 +4,14 @@ namespace App\Actions;
 
 use App\Enums\UserRole;
 use App\Models\User;
+use App\Services\ActivityLog;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class CreateStaffAccount
 {
+    public function __construct(private ActivityLog $log) {}
+
     /**
      * Create a user who can log in to the staff area straight away.
      *
@@ -16,13 +20,19 @@ class CreateStaffAccount
      */
     public function handle(string $name, string $email, string $password, UserRole $role): User
     {
-        return User::forceCreate([
-            'name' => $name,
-            // Fortify lowercases the email at login, so it must be stored that way.
-            'email' => Str::lower($email),
-            'password' => $password,
-            'role' => $role,
-            'email_verified_at' => now(),
-        ]);
+        return DB::transaction(function () use ($name, $email, $password, $role) {
+            $user = User::forceCreate([
+                'name' => $name,
+                // Fortify lowercases the email at login, so it must be stored that way.
+                'email' => Str::lower($email),
+                'password' => $password,
+                'role' => $role,
+                'email_verified_at' => now(),
+            ]);
+
+            $this->log->record('user.added', "Added {$user->name} ({$user->email}) as {$role->value}.", $user);
+
+            return $user;
+        });
     }
 }

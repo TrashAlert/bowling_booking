@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { cn, toUrl } from '@/lib/utils';
+import { index as activityLog } from '@/routes/activity-log';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit as editBranding } from '@/routes/branding';
 import { edit as editDashboardParts } from '@/routes/dashboard-parts';
@@ -64,6 +65,7 @@ const navGroups: NavGroup[] = [
         items: [
             { title: 'Users', href: users(), icon: null },
             { title: 'Dashboard', href: editDashboardParts(), icon: null },
+            { title: 'Activity log', href: activityLog(), icon: null },
         ],
     },
 ];
