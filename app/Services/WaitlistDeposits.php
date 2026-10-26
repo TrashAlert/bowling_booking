@@ -139,6 +139,16 @@ class WaitlistDeposits
     }
 
     /**
+     * Whether an unpaid deposit's pay page has expired: it was started more
+     * than WaitlistTicket::KEEP_HOURS ago. A deposit that was paid leads on
+     * to the party's own page, which expires by its own rule.
+     */
+    public function payPageExpired(WaitlistDeposit $deposit): bool
+    {
+        return ! $deposit->isPaid() && now()->subHours(WaitlistTicket::KEEP_HOURS)->greaterThan($deposit->created_at);
+    }
+
+    /**
      * Whether deposits are taken by the stand-in, which takes no money.
      */
     public function paymentIsStandIn(): bool

@@ -85,6 +85,41 @@ test('a group ahead being called in turn is not counted as going first', functio
         ->where('ticket.passedOver', false));
 });
 
+test('a party\'s page expires a day after its visit ends, with nothing on it about the party', function (Closure $endVisit, int $endsInMinutes) {
+    Lane::factory()->create();
+    $entry = joinWaitlist(minutes: 60, name: 'Farah');
+    $endVisit($entry);
+    $this->travel($endsInMinutes + 23 * 60)->minutes();
+    $stillThere = $this->get(route('waitlist.show', ['entry' => $entry->token]));
+    $this->travel(2)->hours();
+
+    $response = $this->get(route('waitlist.show', ['entry' => $entry->token]));
+
+    $stillThere->assertOk();
+    $response->assertGone()
+        ->assertInertia(fn (Assert $page) => $page->component('error')->where('status', 410));
+    expect($response->getContent())->not->toContain('Farah');
+})->with([
+    'it left the line' => [fn ($entry) => app(WaitlistService::class)->leave($entry), 0],
+    'it missed its call' => [function ($entry) {
+        app(WaitlistService::class)->callNextParties();
+        app(WaitlistService::class)->skip($entry);
+    }, 0],
+    'it played its session out' => [function ($entry) {
+        app(WaitlistService::class)->callNextParties();
+        app(WaitlistService::class)->seat($entry);
+    }, 60],
+]);
+
+test('a party still in line keeps its page however long it waits', function () {
+    $entry = joinWaitlist();
+    $this->travel(3)->days();
+
+    $response = $this->get(route('waitlist.show', ['entry' => $entry->token]));
+
+    $response->assertOk()->assertInertia(fn (Assert $page) => $page->where('ticket.status', 'waiting'));
+});
+
 test('a called party sees its lane and when it must check in by', function () {
     Lane::factory()->create(['number' => 4]);
     $entry = joinWaitlistOnline();

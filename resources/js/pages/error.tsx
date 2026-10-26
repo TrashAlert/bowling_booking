@@ -20,6 +20,11 @@ const messages: Record<number, { title: string; description: string }> = {
         description:
             'The link may be mistyped or out of date. If you joined the waitlist on this phone, the front page leads back to your place in line.',
     },
+    410: {
+        title: 'This page has expired',
+        description:
+            'It was for a visit that has ended. Join the waitlist again if you would like to play.',
+    },
     419: {
         title: 'This page timed out',
         description:

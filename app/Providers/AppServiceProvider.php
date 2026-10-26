@@ -28,12 +28,13 @@ use Minishlink\WebPush\WebPush;
 class AppServiceProvider extends ServiceProvider
 {
     /**
-     * The errors shown as a page of the app: not allowed, not found, timed
-     * out, too many tries, a fault, and down for maintenance.
+     * The errors shown as a page of the app: not allowed, not found, gone
+     * (a party's page after its visit ended), timed out, too many tries, a
+     * fault, and down for maintenance.
      *
      * @var list<int>
      */
-    private const ERROR_PAGES = [403, 404, 419, 429, 500, 503];
+    private const ERROR_PAGES = [403, 404, 410, 419, 429, 500, 503];
 
     /**
      * Register any application services.

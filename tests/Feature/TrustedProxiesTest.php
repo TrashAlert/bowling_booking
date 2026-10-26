@@ -56,3 +56,12 @@ test('a trusted proxy is believed when it says the customer is on https', functi
 
     expect($response->headers->get('Location'))->toStartWith('https://bowl.example.com/waitlist/deposit/');
 });
+
+test('a customer the trusted proxy says is on https gets cookies only sent back over https', function () {
+    config(['app.trusted_proxies' => '127.0.0.1']);
+    (new AppServiceProvider($this->app))->boot();
+
+    $response = $this->withHeaders(['X-Forwarded-Proto' => 'https'])->get(route('home'));
+
+    expect($response->getCookie('bowling_session', false)?->isSecure())->toBeTrue();
+});

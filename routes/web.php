@@ -33,11 +33,15 @@ Route::post('waitlist/deposit/notice/{provider}', WaitlistDepositNoticeControlle
     ->middleware('throttle:60,1')
     ->name('waitlist.deposit.notice');
 
-Route::get('waitlist/deposit/{deposit:token}', [WaitlistDepositController::class, 'show'])->name('waitlist.deposit.show');
+// The pages reached by a secret link are kept out of search engines.
+Route::get('waitlist/deposit/{deposit:token}', [WaitlistDepositController::class, 'show'])
+    ->middleware('noindex')
+    ->name('waitlist.deposit.show');
 Route::post('waitlist/deposit/{deposit:token}', [WaitlistDepositController::class, 'store'])->name('waitlist.deposit.store');
 
 Route::get('waitlist/{entry:token}', [WaitlistEntryController::class, 'show'])
     ->where('entry', '[A-Za-z0-9]{40}')
+    ->middleware('noindex')
     ->name('waitlist.show');
 Route::delete('waitlist/{entry:token}', [WaitlistEntryController::class, 'destroy'])
     ->where('entry', '[A-Za-z0-9]{40}')
@@ -52,7 +56,9 @@ Route::get('reserve', [ReserveLaneController::class, 'create'])->name('reserve')
 Route::post('reserve', [ReserveLaneController::class, 'store'])
     ->middleware('throttle:5,1')
     ->name('booking-requests.store');
-Route::get('reserve/thanks', [ReserveLaneController::class, 'thanks'])->name('booking-requests.thanks');
+Route::get('reserve/thanks', [ReserveLaneController::class, 'thanks'])
+    ->middleware('noindex')
+    ->name('booking-requests.thanks');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');

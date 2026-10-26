@@ -13,7 +13,27 @@ use App\Models\WaitlistEntry;
  */
 class WaitlistTicket
 {
+    // How long a party's page stays up after its visit ends, so it can still
+    // read what became of its deposit.
+    public const KEEP_HOURS = 24;
+
     public function __construct(private WaitlistEstimate $estimate) {}
+
+    /**
+     * Whether the party's page has expired: its visit ended more than
+     * KEEP_HOURS ago, by leaving the line, missing its call, or playing out
+     * its session. A party still waiting or called never expires.
+     */
+    public function expired(WaitlistEntry $entry): bool
+    {
+        $endedAt = match ($entry->status) {
+            WaitlistStatus::Waiting, WaitlistStatus::Called => null,
+            WaitlistStatus::Seated => $entry->booking?->allocations()->max('ends_at') ?? $entry->seated_at,
+            WaitlistStatus::Left, WaitlistStatus::Skipped => $entry->updated_at,
+        };
+
+        return $endedAt !== null && now()->subHours(self::KEEP_HOURS)->greaterThan($endedAt);
+    }
 
     /**
      * What one party sees about itself. Nothing about any other party is

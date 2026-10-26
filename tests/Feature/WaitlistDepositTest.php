@@ -70,6 +70,17 @@ test('a deposit that is already paid leads straight to the place in line', funct
     $response->assertRedirect(route('waitlist.show', ['entry' => $entry->token]));
 });
 
+test('an unpaid deposit page expires a day after it was started and can no longer be paid', function (string $method) {
+    $deposit = WaitlistDeposit::factory()->create(['name' => 'Farah']);
+    $this->travel(25)->hours();
+
+    $response = $this->call($method, route('waitlist.deposit.show', ['deposit' => $deposit->token]));
+
+    $response->assertGone();
+    expect($response->getContent())->not->toContain('Farah')
+        ->and($deposit->refresh()->isPaid())->toBeFalse();
+})->with(['view' => ['GET'], 'pay' => ['POST']]);
+
 test('a deposit link that matches nothing returns 404', function (string $method) {
     $response = $this->{$method}(route('waitlist.deposit.show', ['deposit' => str_repeat('x', 40)]));
 

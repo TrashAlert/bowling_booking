@@ -23,6 +23,8 @@ class WaitlistDepositController extends Controller
             return to_route('waitlist.show', ['entry' => $deposit->entry->token]);
         }
 
+        abort_if($deposits->payPageExpired($deposit), 410);
+
         return Inertia::render('waitlist/deposit', [
             'deposit' => [
                 'name' => $deposit->name,
@@ -51,6 +53,8 @@ class WaitlistDepositController extends Controller
      */
     public function store(WaitlistDeposit $deposit, WaitlistDeposits $deposits): HttpResponse
     {
+        abort_if($deposits->payPageExpired($deposit), 410);
+
         try {
             $deposits->ensureOpen();
         } catch (InvalidStateException $exception) {

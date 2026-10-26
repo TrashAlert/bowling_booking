@@ -6,8 +6,8 @@
         {{-- The business name set under Settings; the page titles are built from it. --}}
         <meta name="app-name" content="{{ $businessName }}">
 
-        {{-- Inline script to detect system dark mode preference and apply it immediately --}}
-        <script>
+        {{-- Inline script to detect system dark mode preference and apply it immediately. It carries the page's one-off code, without which the security policy refuses inline scripts. --}}
+        <script nonce="{{ Vite::cspNonce() }}">
             (function() {
                 const appearance = '{{ $appearance ?? "system" }}';
 

@@ -1,2 +1,7 @@
+# The pages reached by a secret link (a party's place in line, its deposit
+# and the thank-you page after a reservation request) tell search engines
+# not to list them, with an X-Robots-Tag header. They are not blocked here
+# on purpose: a search engine that may not fetch a page never sees that
+# header, and can still list the bare address.
 User-agent: *
 Disallow:

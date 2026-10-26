@@ -120,7 +120,7 @@ This starts the web server, the queue worker, the log viewer and the Vite dev se
 php artisan schedule:work
 ```
 
-This runs the scheduler, which `composer run dev` does **not** start. Without it, no-shows are never marked, finished sessions never complete, and the waitlist is never called automatically. It runs four jobs every minute:
+This runs the scheduler, which `composer run dev` does **not** start. Without it, no-shows are never marked, finished sessions never complete, and the waitlist is never called automatically. It runs four jobs every minute, and one each night:
 
 | Command                          | What it does                                                                           |
 | -------------------------------- | -------------------------------------------------------------------------------------- |
@@ -128,6 +128,7 @@ This runs the scheduler, which `composer run dev` does **not** start. Without it
 | `bookings:mark-no-shows`         | Marks a reservation as a no-show once it is too late to check in, and frees its lanes. |
 | `bookings:complete-finished`     | Marks a session as completed when its time has run out.                                |
 | `waitlist:process`               | Skips parties who missed their call, then calls the next ones for free lanes.          |
+| `activity-log:prune`             | At 4:00 AM, removes activity log lines older than 18 months.                           |
 
 On a server, run the scheduler with a cron entry for `php artisan schedule:run` every minute.
 
@@ -147,6 +148,9 @@ Put a small nginx server in front of the app that lets through the customer page
 ```nginx
 server {
     listen 127.0.0.1:8088;
+
+    # Don't announce nginx's version.
+    server_tokens off;
 
     # Where the app itself is served on the venue's network.
     set $app http://127.0.0.1:8000;
@@ -176,6 +180,17 @@ server {
 ```
 
 When a new customer page is added, add its address here too.
+
+The app sends its own security headers on every response, so the gate needs none:
+
+- **Framing:** other sites may not show its pages in a frame.
+- **File types:** browsers may not read a file as another type than it says it is.
+- **Addresses:** page addresses are not sent to other sites. A ticket page's address is the customer's secret link.
+- **Scripts:** only the app's own scripts may run. Its inline scripts carry a code that changes with every response.
+
+It also removes PHP's `X-Powered-By` header. The one exception is Laravel's own debug page, which gets no script rule, and only shows while `APP_DEBUG` is on.
+
+Cookies set over HTTPS, as customers' are through the gate, are marked HTTPS-only by themselves. Leave `SESSION_SECURE_COOKIE` unset: setting it to `true` marks every cookie HTTPS-only, and staff on the venue's plain-HTTP network could then no longer log in.
 
 ### 2. Settings in `.env`
 
@@ -234,6 +249,7 @@ Once there is an admin, the rest can be done in the app. Under **Settings**, adm
 - **Deposit**: whether customers pay a deposit to join online when they would have to wait, and how much.
 - **Users**: add, edit and remove users, and reset their passwords.
 - **Dashboard**: which parts of the dashboard everyone sees.
+- **Activity log**: everything staff, customers and the app itself did (see [The activity log](#the-activity-log)).
 
 Nobody can delete their own account. An admin removes other people's accounts from **Settings → Users**, so there is always at least one admin.
 
@@ -250,6 +266,7 @@ Staff add a party to the waitlist with a name, an optional phone number (at leas
 - If a lane is free for them right now, there is no deposit and they are put in line at once. A lane that others are already waiting for does not count as free.
 - Otherwise they pay a deposit (RM 10.00 by default). They are only put in line once it is paid, at the end of the line as it stands at that moment.
 - They get a private page at `/waitlist/{token}` that refreshes every 5 seconds: their place in line, then their lane and a countdown when called, then when their session ends.
+- That page, and the deposit page, ask search engines not to list them. A day after the group's visit ends (it left, missed its call, or finished playing), the page shows "This page has expired" with nothing about the group. An unpaid deposit page expires a day after it was started.
 - A group is called when a lane is free for its whole session, so a group behind it that wants a shorter session can be called first. The page then says so, and the group keeps its place.
 - The phone remembers each place-in-line page it has opened, so a customer who closed it is led back from the front page with a "View your place" button. This only works in the same browser: a page opened inside Instagram's or WhatsApp's own browser isn't known to Chrome or Safari.
 - The deposit comes off their bill if they play. It is returned if they leave before being called, and kept if they are called and do not check in within 5 minutes.
@@ -309,6 +326,24 @@ A short closure is refused if it would run into a reservation, including the tim
 The venue's time zone is set under **Settings → Business** (Asia/Kuala_Lumpur until changed), and opening hours and the dashboard's days are read in it. The Reservations page still reads its days in the time zone of the device it is opened on, which is the same while staff devices are set to the venue's zone.
 
 There are no prices yet: every booking's total is 0. The only money handled is the online waitlist deposit.
+
+### The activity log
+
+Every action is written to the activity log, which admins read under **Settings → Activity log**, newest first, filtered by days, person, kind or words. That covers:
+
+- **Staff:** the waitlist, reservations and their requests, sessions and lane closures.
+- **Admins:** every settings change, with the old and new value, and user accounts added, changed or removed.
+- **Customers:** joining online, deposits, leaving the line, notifications and reservation requests.
+- **The scheduler:** calls, missed calls, no-shows and finished sessions.
+- **Logins:** logging in, failed attempts and logging out.
+
+- **Each line holds:** who did it, when, what, and from which internet address.
+- **Written with the action:** the line is written in the same database transaction as what it records, so neither can exist without the other.
+- **Nobody can change it:** the database refuses any change to a line, removing one, or emptying the table, even from inside the app's own code.
+- **Kept for 18 months:** a scheduled job removes older lines, the only removal the database allows.
+- **Tamper check:** each line carries a fingerprint of itself and the line before it, signed with `APP_KEY`. **Check nothing has been changed** on the page, or `php artisan activity-log:verify`, finds a line edited directly in the database.
+- **Keep `APP_KEY` safe:** changing it makes every older line fail the check.
+- **Never written:** phone numbers and passwords. A changed phone number or a reset password is noted as changed, without the value.
 
 ### When something goes wrong
 

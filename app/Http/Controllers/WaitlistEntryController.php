@@ -17,10 +17,13 @@ class WaitlistEntryController extends Controller
     /**
      * Show a party its own place in line. The page is reached by the secret
      * link the party was given, and refreshes itself. The phone remembers it,
-     * so the front page can lead back to it.
+     * so the front page can lead back to it. A day after the visit ends the
+     * page is gone, with nothing on it about the party.
      */
     public function show(Request $request, WaitlistEntry $entry, WaitlistTicket $ticket, WaitlistPush $push, WaitlistPlaces $places): Response
     {
+        abort_if($ticket->expired($entry), 410);
+
         $places->remember($request, $entry);
 
         return Inertia::render('waitlist/show', [

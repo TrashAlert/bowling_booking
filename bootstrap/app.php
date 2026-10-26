@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Middleware\AddSecurityHeaders;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\EnsureUserIsStaff;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\KeepOutOfSearchEngines;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -19,6 +21,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
+        // On every response, error pages included.
+        $middleware->append(AddSecurityHeaders::class);
+
         // A payment provider's server posts here with no session of ours;
         // the provider checks each notice is really its own instead.
         $middleware->preventRequestForgery(except: ['waitlist/deposit/notice/*']);
@@ -32,6 +37,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
             'staff' => EnsureUserIsStaff::class,
+            'noindex' => KeepOutOfSearchEngines::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

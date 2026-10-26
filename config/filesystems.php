@@ -33,7 +33,10 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Off: Laravel would otherwise answer at /storage/{path} for
+            // signed links, which the app never makes. The logo and cover
+            // photo have their own addresses.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],

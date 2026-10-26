@@ -1,7 +1,5 @@
 <?php
 
-use Illuminate\Support\Str;
-
 return [
 
     /*
@@ -127,10 +125,9 @@ return [
     |
     */
 
-    'cookie' => env(
-        'SESSION_COOKIE',
-        Str::slug((string) env('APP_NAME', 'laravel')).'-session',
-    ),
+    // Not named after the framework. Still set apart from other apps run on
+    // localhost, which share cookies whatever their port.
+    'cookie' => env('SESSION_COOKIE', 'bowling_session'),
 
     /*
     |--------------------------------------------------------------------------
@@ -169,6 +166,10 @@ return [
     |
     */
 
+    // Left empty, cookies are marked HTTPS-only whenever the request came over
+    // HTTPS (see App\Http\Middleware\AddSecurityHeaders): customers through
+    // the public gate get them, and staff on the venue's plain-HTTP network
+    // can still log in. Setting true marks them HTTPS-only everywhere.
     'secure' => env('SESSION_SECURE_COOKIE'),
 
     /*
