@@ -6,6 +6,7 @@ use App\Models\ActivityLogEntry;
 use App\Models\Booking;
 use App\Models\BookingRequest;
 use App\Models\Lane;
+use App\Models\LaneBlock;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\WaitlistDeposit;
@@ -66,11 +67,16 @@ class ActivityLog
         'bowling.reservation_max_days_ahead' => 'Days ahead a reservation can be made',
         'bowling.max_players_per_lane' => 'People per lane',
         'bowling.max_session_minutes' => 'Longest session (minutes)',
+        'bowling.session_mode' => 'Sessions booked by (time, games or both)',
+        'bowling.minutes_per_player_game' => 'Minutes one person takes per game',
+        'bowling.max_games' => 'Most games one group can book',
         'bowling.currency_symbol' => 'Currency symbol',
         'bowling.timezone' => 'Time zone',
         'waitlist.deposit_required' => 'Deposit to join online is on',
         'waitlist.online_open' => 'Joining the waitlist online is open',
         'waitlist.online_closed_message' => 'Message while joining online is closed',
+        'waitlist.finish_by_closing' => 'Online groups must finish by closing time',
+        'waitlist.max_wait_minutes' => 'Longest wait for joining online (minutes)',
         'business.name' => 'Business name',
         'business.logo_path' => 'Logo',
         'business.brand_color' => 'Brand colour',
@@ -298,6 +304,20 @@ class ActivityLog
     }
 
     /**
+     * What a group booked in words: a length of time, e.g. "1 hour", or a
+     * number of games with the lane time kept for them, e.g. "3 games
+     * (about 2 hours)".
+     */
+    public function session(int $minutes, ?int $games): string
+    {
+        if ($games === null) {
+            return $this->length($minutes);
+        }
+
+        return trans_choice(':count game|:count games', $games)." (about {$this->length($minutes)})";
+    }
+
+    /**
      * An amount of money kept in cents, e.g. "RM 10.00".
      */
     public function money(int $cents): string
@@ -345,6 +365,7 @@ class ActivityLog
     {
         return match ($subject::class) {
             Lane::class => 'lane',
+            LaneBlock::class => 'lane_block',
             Booking::class => 'booking',
             WaitlistEntry::class => 'waitlist_entry',
             WaitlistDeposit::class => 'deposit',

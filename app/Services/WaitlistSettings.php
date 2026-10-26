@@ -16,6 +16,13 @@ class WaitlistSettings
 
     private const CLOSED_MESSAGE = 'waitlist.online_closed_message';
 
+    private const FINISH_BY_CLOSING = 'waitlist.finish_by_closing';
+
+    private const MAX_WAIT = 'waitlist.max_wait_minutes';
+
+    // The shortest and longest wait an admin can set as the limit.
+    public const MAX_WAIT_LIMITS = ['min' => 10, 'max' => 600];
+
     // The most an admin can write to customers while joining online is closed.
     public const CLOSED_MESSAGE_LENGTH = 200;
 
@@ -69,6 +76,50 @@ class WaitlistSettings
     public function onlineStatus(): array
     {
         return ['open' => $this->onlineJoiningOpen(), 'message' => $this->closedNotice()];
+    }
+
+    /**
+     * Whether a group joining online must be able to finish before the venue
+     * closes: its session, starting after the estimated wait, has to end by
+     * closing time. On until an admin turns it off. Groups already in the
+     * line are not affected, and are still called after closing.
+     */
+    public function finishByClosing(): bool
+    {
+        return Setting::query()->where('key', self::FINISH_BY_CLOSING)->value('value') ?? true;
+    }
+
+    /**
+     * The longest wait, in minutes, at which groups can still join online,
+     * or null for no limit. Above it, customers are asked to come to the
+     * counter. No limit until an admin sets one.
+     */
+    public function maxWaitMinutes(): ?int
+    {
+        return Setting::query()->where('key', self::MAX_WAIT)->value('value');
+    }
+
+    /**
+     * Set the limits on joining online: whether groups must finish by
+     * closing time, and the longest wait, or null for no limit.
+     */
+    public function setJoinLimits(bool $finishByClosing, ?int $maxWaitMinutes): void
+    {
+        Setting::updateOrCreate(['key' => self::FINISH_BY_CLOSING], ['value' => $finishByClosing]);
+
+        $maxWaitMinutes === null
+            ? Setting::forget(self::MAX_WAIT)
+            : Setting::updateOrCreate(['key' => self::MAX_WAIT], ['value' => $maxWaitMinutes]);
+    }
+
+    /**
+     * The limits on joining online, for the join page.
+     *
+     * @return array{finishByClosing: bool, maxWaitMinutes: int|null}
+     */
+    public function joinLimits(): array
+    {
+        return ['finishByClosing' => $this->finishByClosing(), 'maxWaitMinutes' => $this->maxWaitMinutes()];
     }
 
     /**

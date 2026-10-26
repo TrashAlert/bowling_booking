@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests\Staff;
 
+use App\Concerns\ChoosesSessionLength;
 use App\Concerns\LaneSelectionRules;
 use App\Concerns\PhoneValidationRules;
-use App\Concerns\SessionValidationRules;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -16,7 +16,7 @@ use Illuminate\Foundation\Http\FormRequest;
  */
 class ReservationRequest extends FormRequest
 {
-    use LaneSelectionRules, PhoneValidationRules, SessionValidationRules;
+    use ChoosesSessionLength, LaneSelectionRules, PhoneValidationRules;
 
     // A sanity limit, so a typo such as 1200 isn't saved as a party size.
     public const MAX_PARTY_SIZE = 200;
@@ -33,7 +33,7 @@ class ReservationRequest extends FormRequest
             'phone' => $this->phoneRules(),
             'party_size' => ['required', 'integer', 'min:1', 'max:'.self::MAX_PARTY_SIZE],
             'starts_at' => $this->startsAtRules(),
-            'minutes' => $this->sessionMinutesRules(),
+            ...$this->sessionChoiceRules(),
             ...$this->laneSelectionRules(),
             'notes' => ['nullable', 'string', 'max:500'],
             // Set when the reservation confirms a customer's request.
@@ -68,6 +68,7 @@ class ReservationRequest extends FormRequest
             ]),
             ...$this->laneSelectionMessages(),
             ...$this->phoneMessages(),
+            ...$this->sessionChoiceMessages(),
         ];
     }
 

@@ -30,6 +30,9 @@ class VenueRules
         'reservation_max_days_ahead',
         'max_players_per_lane',
         'max_session_minutes',
+        'session_mode',
+        'minutes_per_player_game',
+        'max_games',
         'currency_symbol',
         'timezone',
     ];

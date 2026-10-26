@@ -19,6 +19,7 @@ test('a party sees what it is about to pay', function () {
             'name' => 'Farah',
             'partySize' => 5,
             'minutes' => 90,
+            'games' => null,
             'amountCents' => 1000,
         ]));
 });
@@ -49,6 +50,8 @@ test('a deposit cannot be paid once joining online has been closed', function ()
 
 test('a deposit cannot be paid once the venue has closed', function () {
     openDaily('10:00', '23:00');
+    // The last call is off, so a deposit can be started this late.
+    app(WaitlistSettings::class)->setJoinLimits(false, null);
     $this->travelTo(venueTime('2026-10-05 22:55'));
     laneInPlay();
     $deposit = app(WaitlistDeposits::class)->start('Farah', '0123456789', 90, 5);

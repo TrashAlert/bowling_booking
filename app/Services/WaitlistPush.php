@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\AllocationStatus;
+use App\Enums\WaitlistStatus;
 use App\Models\WaitlistEntry;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +18,10 @@ use Throwable;
  */
 class WaitlistPush
 {
-    public function __construct(private ActivityLog $log) {}
+    public function __construct(
+        private ActivityLog $log,
+        private WaitlistEstimate $estimate,
+    ) {}
 
     /**
      * Whether notifications can be sent at all: they need the key pair made
@@ -66,29 +70,115 @@ class WaitlistPush
                 continue;
             }
 
-            try {
-                $report = app(WebPush::class)->sendOneNotification(
-                    Subscription::create([...$entry->push_subscription, 'contentEncoding' => 'aes128gcm']),
-                    json_encode($this->message($entry)),
-                    // No use arriving after the party's time to check in is up.
-                    ['TTL' => config('bowling.waitlist_checkin_minutes') * 60, 'urgency' => 'high'],
-                );
-
-                if ($report->isSubscriptionExpired()) {
-                    $entry->update(['push_subscription' => null]);
-                }
-            } catch (Throwable $exception) {
-                report($exception);
-            }
+            // No use arriving after the party's time to check in is up.
+            $this->send($entry, $this->calledMessage($entry), config('bowling.waitlist_checkin_minutes') * 60);
         }
     }
 
     /**
-     * What the notification says, and the page it opens when tapped.
+     * Tell each waiting party whose turn is near to start heading back to the
+     * counter: those with notifications on whose estimated wait is
+     * bowling.get_ready_minutes or less. Each party is told once, even if its
+     * wait grows again afterwards. Returns how many were told.
+     *
+     * The wait is only an estimate, so this is a heads-up, not a call: the
+     * party's time to check in still starts when it is called.
+     */
+    public function notifyGetReady(): int
+    {
+        if (! $this->isConfigured()) {
+            return 0;
+        }
+
+        $limit = config('bowling.get_ready_minutes');
+
+        $waits = array_filter(
+            $this->estimate->forWaitingParties(),
+            fn (?int $minutes) => $minutes !== null && $minutes <= $limit,
+        );
+
+        if ($waits === []) {
+            return 0;
+        }
+
+        $due = WaitlistEntry::query()
+            ->whereKey(array_keys($waits))
+            ->where('status', WaitlistStatus::Waiting->value)
+            ->whereNull('get_ready_sent_at')
+            ->whereNotNull('push_subscription')
+            ->with('customer')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($due as $entry) {
+            $minutes = $waits[$entry->id];
+
+            // Marked first, so a phone that can't be reached isn't tried
+            // again every minute.
+            DB::transaction(function () use ($entry, $minutes) {
+                $entry->update(['get_ready_sent_at' => now()]);
+
+                $this->log->record('waitlist.get_ready', sprintf(
+                    'Told %s to get ready: a lane is expected %s.',
+                    $this->log->party($entry->customer->name, $entry->party_size),
+                    $minutes === 0 ? 'any moment' : "in about {$this->log->length($minutes)}",
+                ), $entry, customerName: $entry->customer->name);
+            });
+
+            // No use arriving once the party is likely to have been called.
+            $this->send($entry, $this->getReadyMessage($entry, $minutes), max($minutes, 1) * 60);
+        }
+
+        return $due->count();
+    }
+
+    /**
+     * Send one notification to a party's phone. A failure is reported and
+     * never stops the caller; a phone that has dropped its subscription is
+     * forgotten.
+     *
+     * @param  array{title: string, body: string, url: string}  $message
+     */
+    private function send(WaitlistEntry $entry, array $message, int $ttlSeconds): void
+    {
+        try {
+            $report = app(WebPush::class)->sendOneNotification(
+                Subscription::create([...$entry->push_subscription, 'contentEncoding' => 'aes128gcm']),
+                json_encode($message),
+                ['TTL' => $ttlSeconds, 'urgency' => 'high'],
+            );
+
+            if ($report->isSubscriptionExpired()) {
+                $entry->update(['push_subscription' => null]);
+            }
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    /**
+     * What the notification to get ready says, and the page it opens.
      *
      * @return array{title: string, body: string, url: string}
      */
-    private function message(WaitlistEntry $entry): array
+    private function getReadyMessage(WaitlistEntry $entry, int $minutes): array
+    {
+        return [
+            'title' => __('Get ready, :name', ['name' => $entry->customer->name]),
+            'body' => $minutes <= 1
+                ? __('A lane should be ready for you any moment. Head back to the counter now so you are here when we call you.')
+                : __('A lane should be ready for you in about :minutes minutes. Start heading back to the counter so you are here when we call you.', ['minutes' => $minutes]),
+            'url' => route('waitlist.show', ['entry' => $entry->token], absolute: false),
+        ];
+    }
+
+    /**
+     * What the notification of a call says, and the page it opens when tapped.
+     *
+     * @return array{title: string, body: string, url: string}
+     */
+    private function calledMessage(WaitlistEntry $entry): array
     {
         $entry->loadMissing(['customer', 'booking.allocations.lane']);
 

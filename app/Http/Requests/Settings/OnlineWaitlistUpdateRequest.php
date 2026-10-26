@@ -7,8 +7,8 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Whether customers can join the waitlist online, and what they are told
- * while they cannot, as an admin sets it.
+ * Whether customers can join the waitlist online, what they are told while
+ * they cannot, and the limits on joining, as an admin sets them.
  */
 class OnlineWaitlistUpdateRequest extends FormRequest
 {
@@ -22,6 +22,15 @@ class OnlineWaitlistUpdateRequest extends FormRequest
         return [
             'online_open' => ['required', 'boolean'],
             'closed_message' => ['nullable', 'string', 'max:'.WaitlistSettings::CLOSED_MESSAGE_LENGTH],
+            // The limits on joining online. Left as they are when not sent.
+            'finish_by_closing' => ['sometimes', 'boolean'],
+            'max_wait_minutes' => [
+                'sometimes',
+                'nullable',
+                'integer',
+                'min:'.WaitlistSettings::MAX_WAIT_LIMITS['min'],
+                'max:'.WaitlistSettings::MAX_WAIT_LIMITS['max'],
+            ],
         ];
     }
 
@@ -35,6 +44,8 @@ class OnlineWaitlistUpdateRequest extends FormRequest
         return [
             'online_open' => __('choice'),
             'closed_message' => __('message'),
+            'finish_by_closing' => __('closing time choice'),
+            'max_wait_minutes' => __('longest wait'),
         ];
     }
 }

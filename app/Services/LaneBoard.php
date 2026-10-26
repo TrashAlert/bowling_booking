@@ -20,6 +20,8 @@ use Illuminate\Database\Eloquent\Relations\Relation;
  */
 class LaneBoard
 {
+    public function __construct(private GameSessions $games) {}
+
     // How far ahead the board looks for "next up" and upcoming reservations.
     private const LOOKAHEAD_HOURS = 24;
 
@@ -34,8 +36,8 @@ class LaneBoard
      *     state: string,
      *     closure: array{reason: string|null, until: string|null}|null,
      *     reservationsAhead: int,
-     *     current: array{bookingId: int|null, customerName: string|null, partySize: int|null, startsAt: string, endsAt: string, heldUntil: string|null, note: string|null, isRunning: bool, extendableMinutes: int|null, partyLaneNumbers: list<int>, closureReason: string|null}|null,
-     *     next: array{startsAt: string, customerName: string|null, note: string|null, isClosure: bool, closureReason: string|null}|null,
+     *     current: array{bookingId: int|null, customerName: string|null, partySize: int|null, games: int|null, startsAt: string, endsAt: string, heldUntil: string|null, note: string|null, isRunning: bool, extendableMinutes: int|null, partyLaneNumbers: list<int>, closureReason: string|null, block: array{note: string, startsAt: string, endsAt: string}|null}|null,
+     *     next: array{startsAt: string, customerName: string|null, note: string|null, isClosure: bool, closureReason: string|null, block: array{note: string, startsAt: string, endsAt: string}|null}|null,
      * }>
      */
     public function lanes(): array
@@ -47,7 +49,7 @@ class LaneBoard
             ->with(['allocations' => function (Relation $query) use ($now) {
                 $this->upcoming($query->getQuery(), $now)
                     ->orderBy('starts_at')
-                    ->with(['booking.customer', 'closedForBooking.customer']);
+                    ->with(['booking.customer', 'closedForBooking.customer', 'block']);
             }])
             ->get();
 
@@ -95,6 +97,7 @@ class LaneBoard
                         'bookingId' => $current->booking_id,
                         'customerName' => $this->party($current)?->customer->name,
                         'partySize' => $this->party($current)?->party_size,
+                        'games' => $current->booking?->games,
                         'startsAt' => $current->starts_at->toIso8601String(),
                         'endsAt' => $current->ends_at->toIso8601String(),
                         'heldUntil' => $current->held_until?->toIso8601String(),
@@ -105,6 +108,7 @@ class LaneBoard
                             : null,
                         'partyLaneNumbers' => $laneNumbers[$current->booking_id] ?? [],
                         'closureReason' => $current->closure_reason?->value,
+                        'block' => $this->block($current),
                     ] : null,
                     'next' => $next ? [
                         'startsAt' => $next->starts_at->toIso8601String(),
@@ -112,6 +116,7 @@ class LaneBoard
                         'note' => $next->note,
                         'isClosure' => $next->closed_for_booking_id !== null,
                         'closureReason' => $next->closure_reason?->value,
+                        'block' => $this->block($next),
                     ] : null,
                 ];
             })
@@ -128,6 +133,7 @@ class LaneBoard
      *     customerName: string,
      *     partySize: int,
      *     minutes: int,
+     *     games: int|null,
      *     status: string,
      *     joinedAt: string,
      *     calledAt: string|null,
@@ -153,6 +159,7 @@ class LaneBoard
                     'customerName' => $entry->customer->name,
                     'partySize' => $entry->party_size,
                     'minutes' => $entry->minutes,
+                    'games' => $entry->games,
                     'status' => $entry->status->value,
                     'joinedAt' => $entry->created_at->toIso8601String(),
                     'calledAt' => $entry->called_at?->toIso8601String(),
@@ -177,6 +184,7 @@ class LaneBoard
      *     phone: string|null,
      *     partySize: int,
      *     minutes: int,
+     *     games: int|null,
      *     status: string,
      *     startsAt: string,
      *     endsAt: string,
@@ -207,6 +215,7 @@ class LaneBoard
                 'phone' => $booking->customer->phone,
                 'partySize' => $booking->party_size,
                 'minutes' => $booking->minutes,
+                'games' => $booking->games,
                 'status' => $booking->status->value,
                 'startsAt' => $booking->allocations->min('starts_at')->toIso8601String(),
                 'endsAt' => $booking->allocations->max('ends_at')->toIso8601String(),
@@ -226,9 +235,10 @@ class LaneBoard
     }
 
     /**
-     * What a session can be: its length is chosen in steps, up to a limit.
+     * What a session can be: its length is chosen in steps, up to a limit,
+     * or as a number of games where the venue offers them.
      *
-     * @return array{stepMinutes: int, maxMinutes: int, maxPlayersPerLane: int}
+     * @return array{stepMinutes: int, maxMinutes: int, maxPlayersPerLane: int, mode: string, minutesPerPlayerGame: int, maxGames: int}
      */
     public function sessionRules(): array
     {
@@ -236,6 +246,7 @@ class LaneBoard
             'stepMinutes' => config('bowling.session_step_minutes'),
             'maxMinutes' => config('bowling.max_session_minutes'),
             'maxPlayersPerLane' => config('bowling.max_players_per_lane'),
+            ...$this->games->forForms(),
         ];
     }
 
@@ -317,6 +328,23 @@ class LaneBoard
         $freeMinutes = max(0, intdiv($bookedAgainAt - $allocation->ends_at->getTimestamp(), 60));
 
         return intdiv($freeMinutes, $step) * $step;
+    }
+
+    /**
+     * The league night or event an allocation keeps the lane for, with its
+     * own start and end: the lane is taken from a little before the start.
+     *
+     * @return array{note: string, startsAt: string, endsAt: string}|null
+     */
+    private function block(LaneAllocation $allocation): ?array
+    {
+        $block = $allocation->block;
+
+        return $block === null ? null : [
+            'note' => $block->note,
+            'startsAt' => $block->starts_at->toIso8601String(),
+            'endsAt' => $block->ends_at->toIso8601String(),
+        ];
     }
 
     // The booking an allocation is for: its own, or the reservation it keeps the lane empty for.

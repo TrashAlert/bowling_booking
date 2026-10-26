@@ -4,7 +4,7 @@ import { CheckInButton } from '@/components/staff/check-in-button';
 import { MoveLanesDialog } from '@/components/staff/move-lanes-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatLanes, formatSessionLength, formatTime } from '@/lib/format';
+import { formatLanes, formatSession, formatTime } from '@/lib/format';
 import { reservationsPage } from '@/lib/reservations';
 import { board } from '@/routes/staff';
 import type { LaneOption, ReservationRow } from '@/types';
@@ -32,7 +32,7 @@ function Reservation({
                 </p>
                 <p className="truncate text-sm text-muted-foreground">
                     {row.partySize} {row.partySize === 1 ? 'person' : 'people'}{' '}
-                    · {formatSessionLength(row.minutes)} ·{' '}
+                    · {formatSession(row.minutes, row.games)} ·{' '}
                     {formatLanes(row.laneNumbers)}
                 </p>
                 {row.phone && (

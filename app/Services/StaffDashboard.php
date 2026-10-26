@@ -61,6 +61,7 @@ class StaffDashboard
         private BookingRequests $requests,
         private LaneBoard $board,
         private WaitlistSettings $waitlistSettings,
+        private SchedulerHealth $scheduler,
     ) {}
 
     /**
@@ -115,7 +116,9 @@ class StaffDashboard
      * check in. One that has started without checking in becomes a no-show
      * once its grace runs out. A lane out of order stays closed until staff
      * reopen it, and is overdue once its estimate has passed. Joining the
-     * waitlist online stays closed until an admin opens it again.
+     * waitlist online stays closed until an admin opens it again. A job the
+     * scheduler should run every minute that has gone quiet means groups
+     * stop being called and no-shows stop being marked.
      *
      * @return array{
      *     reservationsToMove: list<array{id: int, customerName: string, startsAt: string, closedLaneNumbers: list<int>}>,
@@ -123,6 +126,7 @@ class StaffDashboard
      *     requests: array{waiting: int, callNow: int},
      *     closedLanes: list<array{number: int, reason: string|null, until: string|null, overdue: bool}>,
      *     onlineJoiningClosed: bool,
+     *     stalledJobs: list<array{job: string, lastRunAt: string|null}>,
      * }
      */
     public function attention(): array
@@ -169,6 +173,7 @@ class StaffDashboard
                 ])
                 ->all(),
             'onlineJoiningClosed' => ! $this->waitlistSettings->onlineJoiningOpen(),
+            'stalledJobs' => $this->scheduler->stalled(),
         ];
     }
 

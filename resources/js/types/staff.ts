@@ -54,6 +54,8 @@ export type LaneCard = {
         bookingId: number | null;
         customerName: string | null;
         partySize: number | null;
+        // Games the party booked; null for a length of time or no booking.
+        games: number | null;
         startsAt: string;
         endsAt: string;
         heldUntil: string | null;
@@ -68,6 +70,8 @@ export type LaneCard = {
         partyLaneNumbers: number[];
         // Set when this is a short closure (re-oil, maintenance), not a booking.
         closureReason: LaneClosureReason | null;
+        // Set when the lane is kept for a league night or an event.
+        block: LaneBlockTimes | null;
     } | null;
     next: {
         startsAt: string;
@@ -77,6 +81,8 @@ export type LaneCard = {
         isClosure: boolean;
         // Set when what comes next is a short closure waiting for the lane.
         closureReason: LaneClosureReason | null;
+        // Set when what comes next is a league night or an event.
+        block: LaneBlockTimes | null;
     } | null;
 };
 
@@ -86,6 +92,9 @@ export type WaitlistRow = {
     customerName: string;
     partySize: number;
     minutes: number;
+    // Games booked, where the venue sells games; null for a length of time.
+    // "minutes" is then the time the games are expected to take.
+    games: number | null;
     status: Extract<WaitlistStatus, 'waiting' | 'called'>;
     joinedAt: string;
     calledAt: string | null;
@@ -117,6 +126,9 @@ export type ReservationRow = {
     phone: string | null;
     partySize: number;
     minutes: number;
+    // Games booked, where the venue sells games; null for a length of time.
+    // "minutes" is then the time the games are expected to take.
+    games: number | null;
     status: Extract<BookingStatus, 'confirmed' | 'checked_in'>;
     startsAt: string;
     endsAt: string;
@@ -134,7 +146,15 @@ export type SessionRules = {
     stepMinutes: number;
     maxMinutes: number;
     maxPlayersPerLane: number;
+    // Whether groups book a length of time, a number of games, or either.
+    mode: SessionMode;
+    // For games: how long one person takes to bowl one game, which the
+    // lane time a number of games needs is worked out from.
+    minutesPerPlayerGame: number;
+    maxGames: number;
 };
+
+export type SessionMode = 'time' | 'games' | 'both';
 
 // A reservation as listed on the Reservations page, whatever became of it.
 export type ReservationDetail = {
@@ -143,6 +163,9 @@ export type ReservationDetail = {
     phone: string | null;
     partySize: number;
     minutes: number;
+    // Games booked, where the venue sells games; null for a length of time.
+    // "minutes" is then the time the games are expected to take.
+    games: number | null;
     status: BookingStatus;
     startsAt: string;
     endsAt: string;
@@ -173,6 +196,9 @@ export type BookingRequestRow = {
     phone: string;
     partySize: number;
     minutes: number;
+    // Games booked, where the venue sells games; null for a length of time.
+    // "minutes" is then the time the games are expected to take.
+    games: number | null;
     lanesNeeded: number;
     startsAt: string;
     // When the customer can be called; both null means any time.
@@ -192,7 +218,14 @@ export type BookingRequestRow = {
 // What the reservation form starts from when it confirms a request.
 export type RequestToConfirm = Pick<
     BookingRequestRow,
-    'id' | 'name' | 'phone' | 'partySize' | 'minutes' | 'startsAt' | 'notes'
+    | 'id'
+    | 'name'
+    | 'phone'
+    | 'partySize'
+    | 'minutes'
+    | 'games'
+    | 'startsAt'
+    | 'notes'
 >;
 
 // A lane in the reservation form, and whether it is free for the chosen time.
@@ -201,6 +234,24 @@ export type LaneOption = {
     number: number;
     hasBumpers: boolean;
     available: boolean;
+};
+
+// A league night or event lanes are kept for, with its own start and end.
+// Its lanes are taken from a little before the start, like a reservation's.
+export type LaneBlockTimes = {
+    note: string;
+    startsAt: string;
+    endsAt: string;
+};
+
+// Lanes blocked for a league night or an event, as the Reservations page
+// lists them. Times are ISO 8601 in UTC.
+export type LaneBlockRow = LaneBlockTimes & {
+    id: number;
+    // When its lanes stop taking anyone, ahead of the start.
+    keptClearFrom: string;
+    lanes: { id: number; number: number }[];
+    createdBy: string | null;
 };
 
 export type ReservationLimits = {
@@ -278,7 +329,17 @@ export type DashboardAttention = {
     }[];
     // True while an admin has closed joining the waitlist online.
     onlineJoiningClosed: boolean;
+    // The scheduler's every-minute jobs that have not run lately, by command
+    // name, with when each last ran (null for never).
+    stalledJobs: { job: ScheduledJob; lastRunAt: string | null }[];
 };
+
+// The jobs the scheduler runs every minute.
+export type ScheduledJob =
+    | 'bookings:release-expired-holds'
+    | 'bookings:mark-no-shows'
+    | 'bookings:complete-finished'
+    | 'waitlist:process';
 
 // How the venue has done over the last so many days, today included. Days
 // and hours are the venue's own, whatever the device's time zone.

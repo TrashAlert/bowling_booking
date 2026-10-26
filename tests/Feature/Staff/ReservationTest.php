@@ -2,6 +2,7 @@
 
 use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
+use App\Models\ActivityLogEntry;
 use App\Models\Booking;
 use App\Models\Lane;
 use App\Models\User;
@@ -52,7 +53,7 @@ describe('the reservations page', function () {
                 ->where('customerName', 'Night owls')
                 ->where('lanes', [['id' => $lane->id, 'number' => 3]])
                 ->etc())
-            ->where('session', ['stepMinutes' => 30, 'maxMinutes' => 240, 'maxPlayersPerLane' => 6])
+            ->where('session', ['stepMinutes' => 30, 'maxMinutes' => 240, 'maxPlayersPerLane' => 6, 'mode' => 'time', 'minutesPerPlayerGame' => 10, 'maxGames' => 10])
             ->where('search', null)
             ->where('limits', ['maxPartySize' => 200, 'leadMinutes' => 60, 'maxDaysAhead' => 90, 'searchLimit' => 50])
             ->where('serverNow', '2026-10-01T10:00:00+00:00')
@@ -340,4 +341,34 @@ test('checking in from the reservations page returns there', function () {
 
     $response->assertRedirect(route('staff.reservations.index', ['date' => '2026-10-01']));
     expect($booking->refresh()->status)->toBe(BookingStatus::CheckedIn);
+});
+
+describe('reserving games', function () {
+    test('staff can reserve games, and the lanes are kept for the time they take', function () {
+        config(['bowling.session_mode' => 'both']);
+        $lanes = [Lane::factory()->create(['number' => 1]), Lane::factory()->create(['number' => 2]), Lane::factory()->create(['number' => 3])];
+
+        // Fourteen people bowl on three lanes, five on each: 50 minutes a game.
+        $response = $this->actingAs(User::factory()->staff()->create())
+            ->post(route('staff.reservations.store'), reservationForm($lanes, ['minutes' => null, 'games' => 2]));
+
+        $response->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Farah Aziz is booked.']);
+        $booking = Booking::query()->sole();
+        expect([$booking->games, $booking->minutes])->toBe([2, 120])
+            ->and($booking->allocations->first()->ends_at->toDateTimeString())->toBe('2026-10-01 14:00:00')
+            ->and(ActivityLogEntry::query()->where('action', 'reservation.made')->sole()->summary)
+            ->toBe("Reserved lanes 1, 2 and 3 for Farah Aziz's group (14 people) on Thu 1 Oct, 8:00 PM, for 2 games (about 2 hours).");
+    });
+
+    test('a reservation changed from games back to a length of time forgets its games', function () {
+        config(['bowling.session_mode' => 'both']);
+        $lane = Lane::factory()->create();
+        $booking = app(BookingService::class)->reserveForNewCustomer('Farah Aziz', '0123456789', collect([$lane]), 120, 4, now()->addHours(2), games: 3);
+
+        $response = $this->actingAs(User::factory()->staff()->create())
+            ->patch(route('staff.reservations.update', $booking), reservationForm([$lane], ['party_size' => 4, 'minutes' => 60]));
+
+        $response->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'The reservation was updated.']);
+        expect($booking->refresh()->only(['games', 'minutes']))->toBe(['games' => null, 'minutes' => 60]);
+    });
 });

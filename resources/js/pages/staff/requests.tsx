@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toDateInput } from '@/lib/dates';
 import {
-    formatSessionLength,
+    formatSession,
     formatShortDate,
     formatTime,
     formatTimeOfDay,
@@ -65,7 +65,7 @@ function callWindow(row: BookingRequestRow): string {
 function asked(row: BookingRequestRow): string {
     return [
         `${formatShortDate(row.startsAt)} at ${formatTime(row.startsAt)}`,
-        formatSessionLength(row.minutes),
+        formatSession(row.minutes, row.games),
         `${row.partySize} ${row.partySize === 1 ? 'person' : 'people'}`,
         `${row.lanesNeeded} ${row.lanesNeeded === 1 ? 'lane' : 'lanes'}`,
     ].join(' · ');

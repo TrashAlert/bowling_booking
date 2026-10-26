@@ -164,6 +164,23 @@ export function formatSessionLength(minutes: number): string {
 }
 
 /**
+ * What a group booked, e.g. "1 h 30 min", or for games "3 games · about
+ * 2 h", the second part being the time its lane is kept.
+ */
+export function formatSession(minutes: number, games: number | null): string {
+    return games === null
+        ? formatSessionLength(minutes)
+        : `${formatGames(games)} · about ${formatSessionLength(minutes)}`;
+}
+
+/**
+ * A number of games, e.g. "1 game" or "3 games".
+ */
+export function formatGames(games: number): string {
+    return `${games} ${games === 1 ? 'game' : 'games'}`;
+}
+
+/**
  * Name the lanes a party is on, e.g. "Lane 4" or "Lanes 5, 6 & 7".
  */
 export function formatLanes(numbers: number[]): string {

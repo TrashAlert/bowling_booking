@@ -3,7 +3,8 @@ import { useState } from 'react';
 import WaitlistController from '@/actions/App/Http/Controllers/Staff/WaitlistController';
 import InputError from '@/components/input-error';
 import PhoneInput from '@/components/phone-input';
-import { SessionLengthPicker } from '@/components/staff/session-length-picker';
+import { SessionChoicePicker } from '@/components/staff/session-choice-picker';
+import { defaultSessionLength } from '@/components/staff/session-length-picker';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -16,13 +17,28 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { defaultChoice } from '@/lib/sessions';
 import type { SessionRules } from '@/types';
 
 export function AddWalkInDialog({ session }: { session: SessionRules }) {
     const [open, setOpen] = useState(false);
+    const [partySize, setPartySize] = useState('2');
+    const [choice, setChoice] = useState(() =>
+        defaultChoice(session, defaultSessionLength(session)),
+    );
+
+    // Each new walk-in starts from the usual party size and length.
+    const openDialog = (next: boolean) => {
+        if (next) {
+            setPartySize('2');
+            setChoice(defaultChoice(session, defaultSessionLength(session)));
+        }
+
+        setOpen(next);
+    };
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={openDialog}>
             <DialogTrigger asChild>
                 <Button>Add walk-in</Button>
             </DialogTrigger>
@@ -77,7 +93,10 @@ export function AddWalkInDialog({ session }: { session: SessionRules }) {
                                         inputMode="numeric"
                                         min={1}
                                         max={session.maxPlayersPerLane}
-                                        defaultValue={2}
+                                        value={partySize}
+                                        onChange={(event) =>
+                                            setPartySize(event.target.value)
+                                        }
                                         required
                                     />
                                     <p className="text-xs text-muted-foreground">
@@ -91,10 +110,19 @@ export function AddWalkInDialog({ session }: { session: SessionRules }) {
 
                             <fieldset className="grid gap-2">
                                 <legend className="mb-2 text-sm leading-none font-medium">
-                                    Session length
+                                    {session.mode === 'games'
+                                        ? 'Games'
+                                        : 'Session length'}
                                 </legend>
-                                <SessionLengthPicker session={session} />
-                                <InputError message={errors.minutes} />
+                                <SessionChoicePicker
+                                    session={session}
+                                    value={choice}
+                                    onChange={setChoice}
+                                    partySize={Number(partySize)}
+                                />
+                                <InputError
+                                    message={errors.minutes ?? errors.games}
+                                />
                             </fieldset>
 
                             <DialogFooter className="gap-2">

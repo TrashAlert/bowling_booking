@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\Settings;
 
+use App\Services\GameSessions;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * The booking rules an admin sets on the Booking rules page. Each field is
@@ -29,6 +31,8 @@ class RulesUpdateRequest extends FormRequest
         'check_in_opens_minutes' => ['min' => 5, 'max' => 240],
         'reservation_max_days_ahead' => ['min' => 1, 'max' => 365],
         'max_players_per_lane' => ['min' => 2, 'max' => 20],
+        'minutes_per_player_game' => ['min' => 1, 'max' => 60],
+        'max_games' => ['min' => 1, 'max' => 20],
     ];
 
     /**
@@ -55,15 +59,19 @@ class RulesUpdateRequest extends FormRequest
      */
     public function rules(): array
     {
-        return collect(self::limits())
-            ->map(fn (array $limits) => [
-                'required',
-                'integer',
-                "min:{$limits['min']}",
-                "max:{$limits['max']}",
-                ...(isset($limits['step']) ? ["multiple_of:{$limits['step']}"] : []),
-            ])
-            ->all();
+        return [
+            ...collect(self::limits())
+                ->map(fn (array $limits) => [
+                    'required',
+                    'integer',
+                    "min:{$limits['min']}",
+                    "max:{$limits['max']}",
+                    ...(isset($limits['step']) ? ["multiple_of:{$limits['step']}"] : []),
+                ])
+                ->all(),
+            // Whether groups book time, games or either.
+            'session_mode' => ['required', Rule::in(GameSessions::MODES)],
+        ];
     }
 
     /**
@@ -82,6 +90,9 @@ class RulesUpdateRequest extends FormRequest
             'reservation_max_days_ahead' => __('days ahead'),
             'max_players_per_lane' => __('people per lane'),
             'max_session_minutes' => __('longest session'),
+            'minutes_per_player_game' => __('minutes per person per game'),
+            'max_games' => __('most games'),
+            'session_mode' => __('what groups book'),
         ];
     }
 }

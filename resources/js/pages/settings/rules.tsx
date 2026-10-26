@@ -1,11 +1,14 @@
 import { Form, Head } from '@inertiajs/react';
+import { useState } from 'react';
 import RulesController from '@/actions/App/Http/Controllers/Settings/RulesController';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
+import { ChoicePills } from '@/components/staff/choice-pills';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { edit } from '@/routes/rules';
+import type { SessionMode } from '@/types';
 
 // The rules on this page, by their name on the server.
 type Rule =
@@ -16,7 +19,16 @@ type Rule =
     | 'check_in_opens_minutes'
     | 'reservation_max_days_ahead'
     | 'max_players_per_lane'
-    | 'max_session_minutes';
+    | 'max_session_minutes'
+    | 'minutes_per_player_game'
+    | 'max_games';
+
+// What groups can book, with the words an admin picks between.
+const sessionModes: { value: SessionMode; label: string }[] = [
+    { value: 'time', label: 'Time only' },
+    { value: 'games', label: 'Games only' },
+    { value: 'both', label: 'Time or games' },
+];
 
 /**
  * One rule that is a whole number: its label, the box to type it in, the
@@ -75,9 +87,11 @@ export default function Rules({
     rules,
     limits,
 }: {
-    rules: Record<Rule, number>;
+    rules: Record<Rule, number> & { session_mode: SessionMode };
     limits: Record<Rule, { min: number; max: number; step?: number }>;
 }) {
+    const [mode, setMode] = useState<SessionMode>(rules.session_mode);
+
     return (
         <>
             <Head title="Booking rules" />
@@ -179,6 +193,57 @@ export default function Rules({
                                 limits={limits.max_session_minutes}
                                 error={errors.max_session_minutes}
                             />
+
+                            <fieldset className="grid gap-2">
+                                <legend className="mb-2 text-sm leading-none font-medium">
+                                    What groups book
+                                </legend>
+                                <ChoicePills
+                                    name="session_mode"
+                                    className="grid-cols-3"
+                                    options={sessionModes}
+                                    value={mode}
+                                    onChange={setMode}
+                                />
+                                <p className="text-sm text-muted-foreground">
+                                    Some venues sell games instead of time. A
+                                    group that books games has its lane kept for
+                                    the time they are expected to take, worked
+                                    out from the minutes below. Staff end the
+                                    session when the games are done, or extend
+                                    it. Applies to the waitlist, walk-ins and
+                                    reservations from now on.
+                                </p>
+                                <InputError message={errors.session_mode} />
+                            </fieldset>
+
+                            {/* Kept in the form while games are off, so the
+                                values are saved as they are. */}
+                            <div
+                                className={
+                                    mode === 'time' ? 'hidden' : 'space-y-6'
+                                }
+                            >
+                                <NumberRule
+                                    rule="minutes_per_player_game"
+                                    label="Time one person takes per game"
+                                    unit="minutes"
+                                    help="A lane is kept for games × people × this, rounded up to the next half hour. For example, at 10 minutes, 4 people bowling 3 games keep a lane for 2 hours."
+                                    value={rules.minutes_per_player_game}
+                                    limits={limits.minutes_per_player_game}
+                                    error={errors.minutes_per_player_game}
+                                />
+
+                                <NumberRule
+                                    rule="max_games"
+                                    label="Most games one group can book"
+                                    unit="games"
+                                    help="Groups wanting more ask at the counter, or book again afterwards."
+                                    value={rules.max_games}
+                                    limits={limits.max_games}
+                                    error={errors.max_games}
+                                />
+                            </div>
 
                             <div className="flex items-center gap-4">
                                 <Button disabled={processing}>Save</Button>

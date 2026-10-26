@@ -55,15 +55,17 @@ class BookingService
         BookingSource $source,
         bool $hold = false,
         ?int $holdMinutes = null,
+        ?int $games = null,
     ): Booking {
         $endsAt = $startsAt->addMinutes($minutes);
         $needed = $this->lanesNeeded($partySize);
         $heldUntil = $hold ? now()->addMinutes($holdMinutes ?? config('bowling.hold_minutes')) : null;
 
-        return DB::transaction(function () use ($customer, $minutes, $partySize, $startsAt, $endsAt, $source, $hold, $heldUntil, $needed) {
+        return DB::transaction(function () use ($customer, $minutes, $partySize, $startsAt, $endsAt, $source, $hold, $heldUntil, $needed, $games) {
             $booking = Booking::create([
                 'customer_id' => $customer->id,
                 'minutes' => $minutes,
+                'games' => $games,
                 'party_size' => $partySize,
                 'source' => $source,
                 'status' => $hold ? BookingStatus::Pending : BookingStatus::Confirmed,
@@ -110,11 +112,13 @@ class BookingService
         CarbonImmutable $startsAt,
         ?string $notes = null,
         BookingSource $source = BookingSource::Phone,
+        ?int $games = null,
     ): Booking {
-        return DB::transaction(function () use ($customer, $lanes, $minutes, $partySize, $startsAt, $notes, $source) {
+        return DB::transaction(function () use ($customer, $lanes, $minutes, $partySize, $startsAt, $notes, $source, $games) {
             $booking = Booking::create([
                 'customer_id' => $customer->id,
                 'minutes' => $minutes,
+                'games' => $games,
                 'party_size' => $partySize,
                 'source' => $source,
                 'status' => BookingStatus::Confirmed,
@@ -130,7 +134,7 @@ class BookingService
                 $this->log->lanes($lanes->pluck('number')),
                 $this->log->party($customer->name, $partySize),
                 $this->log->when($startsAt),
-                $this->log->length($minutes),
+                $this->log->session($minutes, $games),
             ), $booking);
 
             return $booking->load('allocations.lane');
@@ -146,11 +150,12 @@ class BookingService
         int $partySize,
         CarbonImmutable $startsAt,
         ?string $notes = null,
+        ?int $games = null,
     ): Booking {
-        return DB::transaction(function () use ($name, $phone, $lanes, $minutes, $partySize, $startsAt, $notes) {
+        return DB::transaction(function () use ($name, $phone, $lanes, $minutes, $partySize, $startsAt, $notes, $games) {
             $customer = Customer::create(['name' => $name, 'phone' => $phone]);
 
-            return $this->reserve($customer, $lanes, $minutes, $partySize, $startsAt, $notes);
+            return $this->reserve($customer, $lanes, $minutes, $partySize, $startsAt, $notes, BookingSource::Phone, $games);
         });
     }
 
@@ -173,8 +178,9 @@ class BookingService
         int $partySize,
         CarbonImmutable $startsAt,
         ?string $notes = null,
+        ?int $games = null,
     ): Booking {
-        return DB::transaction(function () use ($booking, $name, $phone, $lanes, $minutes, $partySize, $startsAt, $notes) {
+        return DB::transaction(function () use ($booking, $name, $phone, $lanes, $minutes, $partySize, $startsAt, $notes, $games) {
             $booking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
 
             if ($booking->status !== BookingStatus::Confirmed) {
@@ -189,7 +195,7 @@ class BookingService
             $booking->closures()->delete();
 
             $booking->customer->update(['name' => $name, 'phone' => $phone]);
-            $booking->update(['minutes' => $minutes, 'party_size' => $partySize, 'notes' => $notes]);
+            $booking->update(['minutes' => $minutes, 'games' => $games, 'party_size' => $partySize, 'notes' => $notes]);
 
             $this->occupy($booking, $lanes, $startsAt, $startsAt->addMinutes($minutes));
 
@@ -499,7 +505,7 @@ class BookingService
             // Compared by fingerprint, so the number itself is never logged.
             'Phone' => substr(hash('sha256', (string) $booking->customer->phone), 0, 8),
             'Start' => $this->log->when($booking->allocations->min('starts_at')),
-            'Length' => $this->log->length($booking->minutes),
+            'Length' => $this->log->session($booking->minutes, $booking->games),
             'People' => $booking->party_size,
             'Lanes' => $booking->allocations->pluck('lane.number')->sort()->values()->all(),
             'Notes' => $booking->notes,

@@ -44,7 +44,7 @@ test('anyone can open the waitlist page without logging in', function () {
 
     $response->assertInertia(fn (Assert $page) => $page
         ->component('waitlist/join')
-        ->where('session', ['stepMinutes' => 30, 'maxMinutes' => 240, 'maxPlayersPerLane' => 6])
+        ->where('session', ['stepMinutes' => 30, 'maxMinutes' => 240, 'maxPlayersPerLane' => 6, 'mode' => 'time', 'minutesPerPlayerGame' => 10, 'maxGames' => 10])
         ->where('checkInMinutes', 5)
         ->where('depositCents', 1000)
         ->where('currencySymbol', 'RM'));
@@ -192,7 +192,7 @@ test('no one can join online while an admin has closed it', function () {
 
 test('a party can join during opening hours', function () {
     openDaily('10:00', '23:00');
-    $this->travelTo(venueTime('2026-10-05 22:30'));
+    $this->travelTo(venueTime('2026-10-05 20:00'));
     laneInPlay();
 
     $response = $this->post(route('waitlist.store'), joinForm());
@@ -336,4 +336,123 @@ test('a cookie that is not the one we handed out counts for nothing', function (
 
     $response->assertSessionHasNoErrors();
     $this->assertDatabaseCount('waitlist_entries', 1);
+});
+
+test('a group can join online for games, and its wait is for the time they take', function () {
+    config(['bowling.session_mode' => 'games']);
+    Lane::factory()->create();
+
+    $response = $this->post(route('waitlist.store'), joinForm(['minutes' => null, 'party_size' => 4, 'games' => 3]));
+
+    $entry = WaitlistEntry::query()->sole();
+    $response->assertRedirect(route('waitlist.show', $entry->token));
+    expect([$entry->games, $entry->minutes, $entry->deposit->games])->toBe([3, 120, 3]);
+});
+
+test('the join page knows the wait for the longest time games can take', function () {
+    config(['bowling.session_mode' => 'both']);
+    Lane::factory()->create();
+
+    $response = $this->get(route('waitlist.join'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('session.mode', 'both')
+        ->where('waitMinutes.600', 0)
+        ->missing('waitMinutes.630'));
+});
+
+describe('the last call before closing', function () {
+    beforeEach(function () {
+        openDaily('10:00', '23:00');
+    });
+
+    test('a group can only join for a session that ends by closing time', function (int $minutes, bool $allowed) {
+        $this->travelTo(venueTime('2026-10-05 22:00'));
+        Lane::factory()->create();
+
+        $response = $this->post(route('waitlist.store'), joinForm(['minutes' => $minutes]));
+
+        if ($allowed) {
+            $response->assertSessionHasNoErrors();
+            $this->assertDatabaseCount('waitlist_entries', 1);
+        } else {
+            $response->assertSessionHasErrors(['closed' => 'We close at 11:00 PM, and a session of 1 hour 30 minutes joined now would end after that. Pick a shorter session, or ask our staff at the counter.']);
+            $this->assertDatabaseCount('waitlist_deposits', 0);
+        }
+    })->with([
+        'ending at closing time' => [60, true],
+        'ending after closing time' => [90, false],
+    ]);
+
+    test('the wait counts toward the last call', function (int $minutes, bool $allowed) {
+        $this->travelTo(venueTime('2026-10-05 21:00'));
+        // The only lane is free again at 10 PM.
+        laneInPlay();
+
+        $response = $this->post(route('waitlist.store'), joinForm(['minutes' => $minutes]));
+
+        $allowed
+            ? $response->assertSessionHasNoErrors()
+            : $response->assertSessionHasErrors('closed');
+    })->with([
+        'from 10 PM for an hour' => [60, true],
+        'from 10 PM for an hour and a half' => [90, false],
+    ]);
+
+    test('with the last call turned off a group can join for any length', function () {
+        app(WaitlistSettings::class)->setJoinLimits(false, null);
+        $this->travelTo(venueTime('2026-10-05 22:55'));
+        Lane::factory()->create();
+
+        $response = $this->post(route('waitlist.store'), joinForm(['minutes' => 240]));
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('waitlist_entries', 1);
+    });
+});
+
+describe('the longest wait for joining online', function () {
+    test('no group can join online while its wait is longer than the limit', function () {
+        app(WaitlistSettings::class)->setJoinLimits(true, 30);
+        $this->travelTo('2026-10-01 18:00:00');
+        laneInPlay();
+
+        $response = $this->post(route('waitlist.store'), joinForm(['minutes' => 60]));
+
+        $response->assertSessionHasErrors(['closed' => 'The wait is over 30 minutes right now, so we are not adding more groups online. Please ask our staff at the counter.']);
+        $this->assertDatabaseCount('waitlist_deposits', 0);
+    });
+
+    test('a group whose wait is within the limit can join', function () {
+        app(WaitlistSettings::class)->setJoinLimits(true, 60);
+        $this->travelTo('2026-10-01 18:00:00');
+        laneInPlay();
+
+        $response = $this->post(route('waitlist.store'), joinForm(['minutes' => 60]));
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('waitlist_deposits', 1);
+    });
+
+    test('a group that comes back to pay is checked against the limit again', function () {
+        $this->travelTo('2026-10-01 18:00:00');
+        laneInPlay();
+        $this->post(route('waitlist.store'), joinForm(['minutes' => 60]));
+        $deposit = WaitlistDeposit::query()->sole();
+        app(WaitlistSettings::class)->setJoinLimits(true, 30);
+
+        $response = $this->post(route('waitlist.deposit.store', ['deposit' => $deposit->token]));
+
+        $response->assertSessionHasErrors(['closed' => 'The wait is over 30 minutes right now, so we are not adding more groups online. Please ask our staff at the counter.']);
+        expect($deposit->refresh()->isPaid())->toBeFalse();
+    });
+});
+
+test('the join page knows the limits on joining', function () {
+    app(WaitlistSettings::class)->setJoinLimits(false, 45);
+
+    $response = $this->get(route('waitlist.join'));
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->where('joinLimits', ['finishByClosing' => false, 'maxWaitMinutes' => 45]));
 });

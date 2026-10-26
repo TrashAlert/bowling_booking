@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $phone
  * @property int $party_size
  * @property int $minutes
+ * @property int|null $games
  * @property CarbonImmutable $starts_at
  * @property string|null $contact_from
  * @property string|null $contact_until
@@ -49,6 +50,7 @@ class BookingRequest extends Model
         'handled_by',
         'handled_at',
         'decline_reason',
+        'games',
     ];
 
     /**
@@ -62,6 +64,7 @@ class BookingRequest extends Model
             'party_size' => 'integer',
             'minutes' => 'integer',
             'starts_at' => 'datetime',
+            'games' => 'integer',
             'handled_at' => 'datetime',
             'status' => BookingRequestStatus::class,
         ];

@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Concerns\ChoosesSessionLength;
 use App\Concerns\PhoneValidationRules;
-use App\Concerns\SessionValidationRules;
 use App\Http\Requests\Staff\ReservationRequest;
 use App\Services\OpeningHours;
 use Carbon\CarbonImmutable;
@@ -17,7 +17,7 @@ use Illuminate\Validation\Validator;
  */
 class SubmitBookingRequest extends FormRequest
 {
-    use PhoneValidationRules, SessionValidationRules;
+    use ChoosesSessionLength, PhoneValidationRules;
 
     /**
      * Get the validation rules that apply to the request.
@@ -31,7 +31,7 @@ class SubmitBookingRequest extends FormRequest
             'phone' => $this->phoneRules(),
             'party_size' => ['required', 'integer', 'min:1', 'max:'.ReservationRequest::MAX_PARTY_SIZE],
             'starts_at' => $this->startsAtRules(),
-            'minutes' => $this->sessionMinutesRules(),
+            ...$this->sessionChoiceRules(),
             'call_any_time' => ['required', 'boolean'],
             'contact_from' => ['exclude_if:call_any_time,true', 'required', 'date_format:H:i'],
             'contact_until' => ['exclude_if:call_any_time,true', 'required', 'date_format:H:i', 'after:contact_from'],
@@ -49,13 +49,13 @@ class SubmitBookingRequest extends FormRequest
     {
         return [
             function (Validator $validator) {
-                if ($validator->errors()->hasAny(['starts_at', 'minutes'])) {
+                if ($validator->errors()->hasAny(['starts_at', 'minutes', 'games', 'party_size'])) {
                     return;
                 }
 
                 $startsAt = $this->startsAt();
 
-                if (! app(OpeningHours::class)->coversSession($startsAt, $startsAt->addMinutes($this->integer('minutes')))) {
+                if (! app(OpeningHours::class)->coversSession($startsAt, $startsAt->addMinutes($this->sessionMinutes()))) {
                     $validator->errors()->add('starts_at', __('We are not open for the whole of that session. Pick another time or a shorter session.'));
                 }
             },
@@ -90,6 +90,7 @@ class SubmitBookingRequest extends FormRequest
             'contact_until.required' => __('Say until when we can call you, or tick "any time".'),
             'contact_until.after' => __('The end of the time to call must be after its start.'),
             ...$this->phoneMessages(),
+            ...$this->sessionChoiceMessages(),
         ];
     }
 

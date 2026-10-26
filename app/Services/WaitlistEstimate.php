@@ -24,11 +24,17 @@ class WaitlistEstimate
     // How far ahead the estimate looks for a free lane.
     private const LOOKAHEAD_HOURS = 48;
 
-    public function __construct(private BookingService $bookings) {}
+    public function __construct(
+        private BookingService $bookings,
+        private GameSessions $games,
+    ) {}
 
     /**
      * How many minutes a party of one lane would wait if it joined the line
      * now, for each session length on offer. Null where no lane can be found.
+     * While games are offered, the lengths run up to the longest time any
+     * number of games can be given, so a group choosing games finds its wait
+     * under the time its games are expected to take.
      *
      * @return array<int, int|null>
      */
@@ -39,7 +45,9 @@ class WaitlistEstimate
 
         $step = config('bowling.session_step_minutes');
 
-        return collect(range($step, config('bowling.max_session_minutes'), $step))
+        $longest = max(config('bowling.max_session_minutes'), $this->games->longestMinutes());
+
+        return collect(range($step, $longest, $step))
             ->mapWithKeys(fn (int $minutes) => [
                 $minutes => $this->minutesUntil($this->firstOpening($busy, 1, $minutes, $now), $now),
             ])
@@ -64,6 +72,32 @@ class WaitlistEstimate
             $this->firstOpening($busy, $this->bookings->lanesNeeded($entry->party_size), $entry->minutes, $now),
             $now,
         );
+    }
+
+    /**
+     * How many minutes until each waiting party is likely to be called, keyed
+     * by entry id, first in line first. The line is played forward once, so
+     * each party gets what forEntry() would give it. Null for a party no lane
+     * can be found for.
+     *
+     * @return array<int, int|null>
+     */
+    public function forWaitingParties(): array
+    {
+        $now = CarbonImmutable::now();
+        $busy = $this->busyTimes($now);
+        $waits = [];
+
+        foreach ($this->waiting() as $party) {
+            $opening = $this->firstOpening($busy, $this->bookings->lanesNeeded($party->party_size), $party->minutes, $now);
+            $waits[$party->id] = $this->minutesUntil($opening, $now);
+
+            foreach ($opening['lanes'] ?? [] as $laneId) {
+                $busy[$laneId][] = [$opening['start'], $opening['start'] + $party->minutes * 60];
+            }
+        }
+
+        return $waits;
     }
 
     /**

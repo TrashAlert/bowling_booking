@@ -3,6 +3,7 @@
 use App\Models\LaneRepair;
 use App\Models\User;
 use App\Services\DashboardSettings;
+use App\Services\SchedulerHealth;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('guests are redirected to the login page', function () {
@@ -29,6 +30,10 @@ test('a user without a role is told nothing about the venue', function () {
 });
 
 test('staff see what needs attention and the last seven days of analytics', function () {
+    foreach (SchedulerHealth::JOBS as $job) {
+        app(SchedulerHealth::class)->recordRun($job);
+    }
+
     $response = $this->actingAs(User::factory()->staff()->create())->get(route('dashboard'));
 
     $response->assertInertia(fn (Assert $page) => $page
@@ -40,6 +45,7 @@ test('staff see what needs attention and the last seven days of analytics', func
             'requests' => ['waiting' => 0, 'callNow' => 0],
             'closedLanes' => [],
             'onlineJoiningClosed' => false,
+            'stalledJobs' => [],
         ])
         ->where('analytics.days', 7)
         ->has('analytics.byDay', 7)

@@ -30,8 +30,9 @@ class WaitlistController extends Controller
         $entry = $waitlist->joinAsNewCustomer(
             $request->string('name')->toString(),
             $request->input('phone'),
-            $request->integer('minutes'),
+            $request->sessionMinutes(),
             $request->integer('party_size'),
+            $request->games(),
         );
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name is in line.', ['name' => $entry->customer->name])]);

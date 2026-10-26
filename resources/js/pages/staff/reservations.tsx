@@ -1,8 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { BlockLanesDialog } from '@/components/staff/block-lanes-dialog';
 import { CancelReservationDialog } from '@/components/staff/cancel-reservation-dialog';
 import { CheckInButton } from '@/components/staff/check-in-button';
+import { LaneBlocksList } from '@/components/staff/lane-blocks-list';
 import { MoveLanesDialog } from '@/components/staff/move-lanes-dialog';
 import { ReservationFormDialog } from '@/components/staff/reservation-form-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +15,7 @@ import { addDays, browserTimeZone } from '@/lib/dates';
 import {
     formatDate,
     formatLanes,
-    formatSessionLength,
+    formatSession,
     formatShortDate,
     formatTime,
 } from '@/lib/format';
@@ -22,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { index } from '@/routes/staff/reservations';
 import type {
     BookingStatus,
+    LaneBlockRow,
     LaneOption,
     ReservationDetail,
     ReservationLimits,
@@ -33,6 +36,10 @@ type Props = {
     // Set while the list shows a search across every day, not the day's own.
     search: string | null;
     reservations: ReservationDetail[];
+    // Lanes blocked for a league night or an event that day; empty while
+    // searching.
+    blocks: LaneBlockRow[];
+    maxBlockWeeks: number;
     session: SessionRules;
     limits: ReservationLimits;
     laneOptions?: LaneOption[];
@@ -81,6 +88,7 @@ const SEARCH_DELAY_MS = 300;
 
 type OpenDialog =
     | { kind: 'create' }
+    | { kind: 'block' }
     | { kind: 'change'; reservation: ReservationDetail }
     | { kind: 'cancel'; reservation: ReservationDetail }
     | { kind: 'move'; reservation: ReservationDetail };
@@ -131,7 +139,7 @@ function ReservationRow({
                 </p>
                 <p className="text-sm text-muted-foreground">
                     {row.partySize} {row.partySize === 1 ? 'person' : 'people'}{' '}
-                    · {formatSessionLength(row.minutes)} ·{' '}
+                    · {formatSession(row.minutes, row.games)} ·{' '}
                     {formatLanes(row.lanes.map((lane) => lane.number))}
                     {row.phone && (
                         <span className="tabular-nums"> · {row.phone}</span>
@@ -182,6 +190,8 @@ export default function Reservations({
     date,
     search,
     reservations,
+    blocks,
+    maxBlockWeeks,
     session,
     limits,
     laneOptions,
@@ -271,6 +281,12 @@ export default function Reservations({
                         <Button variant="outline" asChild>
                             <Link href={reservationsPage()}>Today</Link>
                         </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => setDialog({ kind: 'block' })}
+                        >
+                            Block lanes
+                        </Button>
                         <Button onClick={() => setDialog({ kind: 'create' })}>
                             New reservation
                         </Button>
@@ -319,6 +335,8 @@ export default function Reservations({
                     </p>
                 )}
 
+                {!search && <LaneBlocksList blocks={blocks} now={now} />}
+
                 {shown.length === 0 ? (
                     <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
                         {reservations.length > 0
@@ -359,6 +377,16 @@ export default function Reservations({
                 )}
             </div>
 
+            {dialog?.kind === 'block' && (
+                <BlockLanesDialog
+                    day={date}
+                    session={session}
+                    limits={limits}
+                    maxWeeks={maxBlockWeeks}
+                    laneOptions={laneOptions}
+                    onClose={() => setDialog(null)}
+                />
+            )}
             {dialog?.kind === 'cancel' && (
                 <CancelReservationDialog
                     reservation={dialog.reservation}

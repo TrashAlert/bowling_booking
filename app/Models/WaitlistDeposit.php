@@ -32,6 +32,7 @@ class WaitlistDeposit extends Model
         'waitlist_entry_id',
         'payment_provider',
         'payment_reference',
+        'games',
     ];
 
     // Never send the secret token to the browser by accident.
@@ -48,6 +49,7 @@ class WaitlistDeposit extends Model
             'minutes' => 'integer',
             'party_size' => 'integer',
             'amount_cents' => 'integer',
+            'games' => 'integer',
             'paid_at' => 'datetime',
         ];
     }

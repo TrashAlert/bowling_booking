@@ -14,6 +14,9 @@ export type WaitlistTicket = {
     customerName: string;
     partySize: number;
     minutes: number;
+    // Games booked, where the venue sells games; null for a length of time.
+    // "minutes" is then the time the games are expected to take.
+    games: number | null;
     joinedAt: string;
     // 1 means first in line, though a group behind can still be called first
     // when only its shorter session fits. Null once out of the line.
@@ -53,5 +56,8 @@ export type PendingDeposit = {
     name: string;
     partySize: number;
     minutes: number;
+    // Games booked, where the venue sells games; null for a length of time.
+    // "minutes" is then the time the games are expected to take.
+    games: number | null;
     amountCents: number;
 };

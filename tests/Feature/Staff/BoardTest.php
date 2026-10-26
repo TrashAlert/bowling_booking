@@ -16,7 +16,7 @@ test('staff see the lanes, waitlist, reservations and session rules on the board
         ->component('staff/board')
         ->has('lanes', 2)
         ->has('reservations', 1)
-        ->where('session', ['stepMinutes' => 30, 'maxMinutes' => 240, 'maxPlayersPerLane' => 6])
+        ->where('session', ['stepMinutes' => 30, 'maxMinutes' => 240, 'maxPlayersPerLane' => 6, 'mode' => 'time', 'minutesPerPlayerGame' => 10, 'maxGames' => 10])
         ->has('waitlist', 1, fn (Assert $row) => $row
             ->where('id', $entry->id)
             ->where('customerName', 'Farah')

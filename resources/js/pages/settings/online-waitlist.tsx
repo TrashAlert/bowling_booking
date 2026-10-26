@@ -18,13 +18,22 @@ export default function OnlineWaitlist({
     onlineOpen,
     closedMessage,
     maxMessageLength,
+    finishByClosing,
+    maxWaitMinutes,
+    maxWaitLimits,
 }: {
     onlineOpen: boolean;
     // What customers are told while it is closed; null for the plain words.
     closedMessage: string | null;
     maxMessageLength: number;
+    // Whether a group joining online must finish by closing time.
+    finishByClosing: boolean;
+    // The longest wait at which groups can still join online; null for none.
+    maxWaitMinutes: number | null;
+    maxWaitLimits: { min: number; max: number };
 }) {
     const [open, setOpen] = useState(onlineOpen);
+    const [byClosing, setByClosing] = useState(finishByClosing);
 
     return (
         <>
@@ -36,7 +45,7 @@ export default function OnlineWaitlist({
                 <Heading
                     variant="small"
                     title="Online waitlist"
-                    description="Choose whether customers can join the waitlist from their phone"
+                    description="Choose whether customers can join the waitlist from their phone, and when"
                 />
 
                 <Form
@@ -92,6 +101,65 @@ export default function OnlineWaitlist({
                                     words shown in grey.
                                 </p>
                                 <InputError message={errors.closed_message} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <input
+                                    type="hidden"
+                                    name="finish_by_closing"
+                                    value={byClosing ? '1' : '0'}
+                                />
+                                <div className="flex items-center gap-2">
+                                    <Checkbox
+                                        id="finish-by-closing"
+                                        checked={byClosing}
+                                        onCheckedChange={(checked) =>
+                                            setByClosing(checked === true)
+                                        }
+                                    />
+                                    <Label htmlFor="finish-by-closing">
+                                        Only take groups that can finish by
+                                        closing time
+                                    </Label>
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                    {byClosing
+                                        ? 'A group can only join online if its session, starting after the expected wait, ends by closing time. Late in the evening only shorter sessions can join. Groups already in the line are still called, even after closing.'
+                                        : 'Groups can join online until closing time for any length, and may play past it.'}
+                                </p>
+                                <InputError
+                                    message={errors.finish_by_closing}
+                                />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="max-wait">
+                                    Stop online joins when the wait is over
+                                </Label>
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        id="max-wait"
+                                        name="max_wait_minutes"
+                                        type="number"
+                                        inputMode="numeric"
+                                        min={maxWaitLimits.min}
+                                        max={maxWaitLimits.max}
+                                        defaultValue={maxWaitMinutes ?? ''}
+                                        placeholder="No limit"
+                                        className="w-28"
+                                    />
+                                    <span className="text-sm text-muted-foreground">
+                                        minutes
+                                    </span>
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                    Optional. While the wait for the session a
+                                    group picks is longer, it is asked to come
+                                    to the counter instead. Leave it empty for
+                                    no limit. Walk-ins added at the counter are
+                                    not limited.
+                                </p>
+                                <InputError message={errors.max_wait_minutes} />
                             </div>
 
                             <div className="flex items-center gap-4">

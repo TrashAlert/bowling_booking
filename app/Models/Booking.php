@@ -20,6 +20,7 @@ class Booking extends Model
         'status',
         'total_cents',
         'notes',
+        'games',
     ];
 
     protected function casts(): array
@@ -28,6 +29,7 @@ class Booking extends Model
             'minutes' => 'integer',
             'party_size' => 'integer',
             'total_cents' => 'integer',
+            'games' => 'integer',
             'source' => BookingSource::class,
             'status' => BookingStatus::class,
         ];

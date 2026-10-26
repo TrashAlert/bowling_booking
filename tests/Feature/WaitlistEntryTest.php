@@ -25,6 +25,7 @@ test('a waiting party sees its place in line and nothing about anyone else', fun
             'customerName' => 'Farah',
             'partySize' => 3,
             'minutes' => 90,
+            'games' => null,
             'joinedAt' => '2026-10-01T18:01:00+00:00',
             'position' => 2,
             'partiesAhead' => 1,

@@ -382,6 +382,7 @@ describe('on the lane board', function () {
                 'note' => 'Maintenance',
                 'isClosure' => false,
                 'closureReason' => 'maintenance',
+                'block' => null,
             ]);
     });
 

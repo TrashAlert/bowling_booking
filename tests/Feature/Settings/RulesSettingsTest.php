@@ -27,6 +27,9 @@ function bookingRules(array $overrides = []): array
         'reservation_max_days_ahead' => 90,
         'max_players_per_lane' => 6,
         'max_session_minutes' => 240,
+        'minutes_per_player_game' => 10,
+        'max_games' => 10,
+        'session_mode' => 'time',
         ...$overrides,
     ];
 }
@@ -255,6 +258,9 @@ test('a booking rule that is not acceptable is refused', function (string $rule,
     'too few days ahead' => ['reservation_max_days_ahead', 0, 'The days ahead field must be at least 1.'],
     'too many days ahead' => ['reservation_max_days_ahead', 366, 'The days ahead field must not be greater than 365.'],
     'no people per lane' => ['max_players_per_lane', '', 'The people per lane field is required.'],
+    'an unknown way of booking' => ['session_mode', 'hours', 'The selected what groups book is invalid.'],
+    'no minutes per person per game' => ['minutes_per_player_game', 0, 'The minutes per person per game field must be at least 1.'],
+    'too many games' => ['max_games', 21, 'The most games field must not be greater than 20.'],
     'too few people per lane' => ['max_players_per_lane', 1, 'The people per lane field must be at least 2.'],
     'too many people per lane' => ['max_players_per_lane', 21, 'The people per lane field must not be greater than 20.'],
     'no longest session' => ['max_session_minutes', '', 'The longest session field is required.'],
@@ -262,3 +268,14 @@ test('a booking rule that is not acceptable is refused', function (string $rule,
     'a longest session that is not a whole number of steps' => ['max_session_minutes', 100, 'The longest session field must be a multiple of 30.'],
     'too long a longest session' => ['max_session_minutes', 750, 'The longest session field must not be greater than 720.'],
 ]);
+
+test('admins can offer games, and the booking forms follow', function () {
+    $response = $this->actingAs(User::factory()->admin()->create())
+        ->put(route('rules.update'), bookingRules(['session_mode' => 'both', 'minutes_per_player_game' => 12, 'max_games' => 8]));
+
+    $response->assertRedirect(route('rules.edit'));
+    $this->get(route('waitlist.join'))->assertInertia(fn (Assert $page) => $page
+        ->where('session.mode', 'both')
+        ->where('session.minutesPerPlayerGame', 12)
+        ->where('session.maxGames', 8));
+});

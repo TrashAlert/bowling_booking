@@ -91,3 +91,15 @@ test('a party that has been called has no estimate', function () {
 
     expect($wait)->toBeNull();
 });
+
+test('every waiting party gets its wait from one play of the line', function () {
+    playOn(Lane::factory()->create(), minutes: 60);
+    $first = joinWaitlist(minutes: 60);
+    // Two lanes' worth of people, and the venue has one lane.
+    $tooBig = joinWaitlist(minutes: 60, partySize: 12);
+    $last = joinWaitlist(minutes: 30);
+
+    $waits = app(WaitlistEstimate::class)->forWaitingParties();
+
+    expect($waits)->toBe([$first->id => 60, $tooBig->id => null, $last->id => 120]);
+});

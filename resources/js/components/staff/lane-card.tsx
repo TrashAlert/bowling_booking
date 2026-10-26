@@ -19,6 +19,7 @@ import { closureLabels } from '@/lib/closures';
 import {
     formatCountdown,
     formatDay,
+    formatGames,
     formatMinutes,
     formatTime,
 } from '@/lib/format';
@@ -135,8 +136,38 @@ function LaneActivity({ lane, now }: { lane: LaneCardData; now: number }) {
         );
     }
 
+    // A league night or event: kept clear until it starts, then under way.
+    if (state === 'blocked' && current.block) {
+        const { block } = current;
+
+        return (
+            <div className="space-y-0.5">
+                <p className="truncate font-medium">{block.note}</p>
+                <p className="text-sm text-muted-foreground">
+                    {Date.parse(block.startsAt) > now ? (
+                        <>
+                            Kept clear · starts at{' '}
+                            <span className="font-medium text-foreground tabular-nums">
+                                {formatTime(block.startsAt)}
+                            </span>
+                        </>
+                    ) : (
+                        <>
+                            <span className="font-medium text-foreground tabular-nums">
+                                {formatMinutes(Date.parse(block.endsAt) - now)}
+                            </span>{' '}
+                            left, until {formatTime(block.endsAt)}
+                        </>
+                    )}
+                </p>
+            </div>
+        );
+    }
+
     const who = current.customerName ?? current.note ?? 'No details';
-    const party = current.partySize ? ` · ${current.partySize} people` : '';
+    const party =
+        (current.partySize ? ` · ${current.partySize} people` : '') +
+        (current.games ? ` · ${formatGames(current.games)}` : '');
 
     return (
         <div className="space-y-0.5">
@@ -194,6 +225,11 @@ function nextUp(lane: LaneCardData): string {
 
     if (next.closureReason) {
         return `Closes ${time} · ${closureLabels[next.closureReason]}`;
+    }
+
+    // The lane closes a little before a league night or event begins.
+    if (next.block) {
+        return `Closes ${time} · ${next.block.note} at ${formatTime(next.block.startsAt)}`;
     }
 
     return `${next.isClosure ? 'Closes' : 'Next'} ${time} · ${next.customerName ?? next.note ?? 'Blocked'}`;

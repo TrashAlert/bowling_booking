@@ -7,6 +7,7 @@ use App\Models\Lane;
 use App\Models\LaneAllocation;
 use App\Models\WaitlistDeposit;
 use App\Services\BookingService;
+use App\Services\LaneBlocks;
 use App\Services\LaneBoard;
 use App\Services\WaitlistDeposits;
 use App\Services\WaitlistService;
@@ -133,6 +134,7 @@ test('the next allocation is shown alongside the current one', function () {
             'note' => null,
             'isClosure' => false,
             'closureReason' => null,
+            'block' => null,
         ]);
 });
 
@@ -199,6 +201,7 @@ test('a lane is closed in the hour before a reservation and shows who it is for'
             'note' => null,
             'isClosure' => false,
             'closureReason' => null,
+            'block' => null,
         ])
         ->and($booking->allocations)->toHaveCount(1);
 });
@@ -216,6 +219,7 @@ test('a free lane shows when it will close for a reservation', function () {
             'note' => null,
             'isClosure' => true,
             'closureReason' => null,
+            'block' => null,
         ]);
 });
 
@@ -252,6 +256,7 @@ test('the waitlist lists parties in line in order and never exposes their token'
             'customerName' => 'First',
             'partySize' => 2,
             'minutes' => 120,
+            'games' => null,
             'status' => 'waiting',
             'joinedAt' => '2026-10-01T18:00:00+00:00',
             'calledAt' => null,
@@ -347,5 +352,22 @@ test('the session rules come from the config', function () {
         'stepMinutes' => 15,
         'maxMinutes' => 180,
         'maxPlayersPerLane' => 8,
+        'mode' => 'time',
+        'minutesPerPlayerGame' => 10,
+        'maxGames' => 10,
     ]);
+});
+
+test('a lane kept for a league night shows the night and its own times', function () {
+    $lane = Lane::factory()->create();
+    app(LaneBlocks::class)->block(collect([$lane]), now()->addMinutes(30), 180, 'League night');
+
+    $card = app(LaneBoard::class)->lanes()[0];
+
+    expect($card['state'])->toBe('blocked')
+        ->and($card['current']['block'])->toBe([
+            'note' => 'League night',
+            'startsAt' => '2026-10-01T18:30:00+00:00',
+            'endsAt' => '2026-10-01T21:30:00+00:00',
+        ]);
 });

@@ -17,9 +17,12 @@ class RulesController extends Controller
     public function edit(): Response
     {
         return Inertia::render('settings/rules', [
-            'rules' => collect(RulesUpdateRequest::limits())
-                ->map(fn (array $limits, string $rule) => config("bowling.{$rule}"))
-                ->all(),
+            'rules' => [
+                ...collect(RulesUpdateRequest::limits())
+                    ->map(fn (array $limits, string $rule) => config("bowling.{$rule}"))
+                    ->all(),
+                'session_mode' => config('bowling.session_mode'),
+            ],
             'limits' => RulesUpdateRequest::limits(),
         ]);
     }
@@ -31,7 +34,7 @@ class RulesController extends Controller
     public function update(RulesUpdateRequest $request, VenueRules $rules): RedirectResponse
     {
         foreach ($request->validated() as $rule => $value) {
-            $rules->save($rule, (int) $value);
+            $rules->save($rule, $rule === 'session_mode' ? $value : (int) $value);
         }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Booking rules saved.')]);

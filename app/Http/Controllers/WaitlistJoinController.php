@@ -45,6 +45,10 @@ class WaitlistJoinController extends Controller
             'depositCents' => $deposits->depositCents(),
             // Joining is only possible while the venue is open.
             'opening' => $hours->status(),
+            // Whether a session must end by closing time, and the longest wait
+            // at which groups can still join online.
+            'joinLimits' => fn () => $settings->joinLimits(),
+            'serverNow' => fn () => now()->toIso8601String(),
             // The likely wait for each session length; the page refreshes it.
             'waitMinutes' => fn () => $estimate->forNewParty(),
             // False while every lane is out of order: nobody can join then.
@@ -82,8 +86,9 @@ class WaitlistJoinController extends Controller
             $deposit = $deposits->start(
                 $request->string('name')->toString(),
                 $request->string('phone')->toString(),
-                $request->integer('minutes'),
+                $request->sessionMinutes(),
                 $request->integer('party_size'),
+                $request->games(),
             );
         } catch (InvalidStateException $exception) {
             throw ValidationException::withMessages(['closed' => $exception->getMessage()]);

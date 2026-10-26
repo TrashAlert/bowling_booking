@@ -21,6 +21,7 @@ class LaneAllocation extends Model
         'held_until',
         'note',
         'closure_reason',
+        'lane_block_id',
     ];
 
     protected function casts(): array
@@ -44,6 +45,12 @@ class LaneAllocation extends Model
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
+    }
+
+    // Set when this row keeps the lane taken for a league night or event.
+    public function block(): BelongsTo
+    {
+        return $this->belongsTo(LaneBlock::class, 'lane_block_id');
     }
 
     // Set when this row keeps the lane empty in the hour before a reservation.

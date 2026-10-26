@@ -5,10 +5,8 @@ import ReservationController from '@/actions/App/Http/Controllers/Staff/Reservat
 import InputError from '@/components/input-error';
 import PhoneInput from '@/components/phone-input';
 import { LanePicker } from '@/components/staff/lane-picker';
-import {
-    defaultSessionLength,
-    SessionLengthPicker,
-} from '@/components/staff/session-length-picker';
+import { SessionChoicePicker } from '@/components/staff/session-choice-picker';
+import { defaultSessionLength } from '@/components/staff/session-length-picker';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -29,6 +27,7 @@ import {
     toTimeInput,
 } from '@/lib/dates';
 import { formatMinutes, formatTimeOfDay } from '@/lib/format';
+import { choiceMinutes, choiceOf, defaultChoice } from '@/lib/sessions';
 import { index } from '@/routes/staff/reservations';
 import type {
     LaneOption,
@@ -90,14 +89,19 @@ export function ReservationFormDialog({
             ? { date: day, time: '18:00' }
             : nextStartTime(opened, session.stepMinutes);
     });
-    const [minutes, setMinutes] = useState(
-        reservation?.minutes ??
-            fromRequest?.minutes ??
-            defaultSessionLength(session),
-    );
+    const [choice, setChoice] = useState(() => {
+        const existing = reservation ?? fromRequest;
+
+        return existing
+            ? choiceOf(existing.minutes, existing.games)
+            : defaultChoice(session, defaultSessionLength(session));
+    });
     const [partySize, setPartySize] = useState(
         String(reservation?.partySize ?? fromRequest?.partySize ?? 2),
     );
+    // How long the lanes are kept: the length picked, or the time the games
+    // picked are expected to take. Free lanes are looked up for that.
+    const minutes = choiceMinutes(session, choice, Number(partySize));
     const [selected, setSelected] = useState(
         reservation?.lanes.map((lane) => lane.id) ?? [],
     );
@@ -307,14 +311,19 @@ export function ReservationFormDialog({
 
                             <fieldset className="grid gap-2">
                                 <legend className="mb-2 text-sm leading-none font-medium">
-                                    Length
+                                    {session.mode === 'games'
+                                        ? 'Games'
+                                        : 'Length'}
                                 </legend>
-                                <SessionLengthPicker
+                                <SessionChoicePicker
                                     session={session}
-                                    value={minutes}
-                                    onChange={setMinutes}
+                                    value={choice}
+                                    onChange={setChoice}
+                                    partySize={people}
                                 />
-                                <InputError message={errors.minutes} />
+                                <InputError
+                                    message={errors.minutes ?? errors.games}
+                                />
                             </fieldset>
 
                             <fieldset className="grid gap-2">

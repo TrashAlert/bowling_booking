@@ -47,11 +47,12 @@ class ReserveLaneController extends Controller
             $request->string('name')->toString(),
             $request->string('phone')->toString(),
             $request->integer('party_size'),
-            $request->integer('minutes'),
+            $request->sessionMinutes(),
             $request->startsAt(),
             $contactFrom,
             $contactUntil,
             $request->input('notes'),
+            $request->games(),
         );
 
         return to_route('booking-requests.thanks')->with(self::SESSION_KEY, $bookingRequest->id);
@@ -75,6 +76,7 @@ class ReserveLaneController extends Controller
                 'phone' => $bookingRequest->phone,
                 'partySize' => $bookingRequest->party_size,
                 'minutes' => $bookingRequest->minutes,
+                'games' => $bookingRequest->games,
                 'startsAt' => $bookingRequest->starts_at->toIso8601String(),
                 'contactFrom' => $bookingRequest->contact_from === null ? null : substr($bookingRequest->contact_from, 0, 5),
                 'contactUntil' => $bookingRequest->contact_until === null ? null : substr($bookingRequest->contact_until, 0, 5),

@@ -8,7 +8,7 @@ import {
     formatLanes,
     formatMinutes,
     formatMoney,
-    formatSessionLength,
+    formatSession,
 } from '@/lib/format';
 import type { WaitlistRow, WalkInTicket } from '@/types';
 
@@ -44,7 +44,7 @@ function WaitlistEntry({
                     <p className="text-sm text-muted-foreground">
                         {row.partySize}{' '}
                         {row.partySize === 1 ? 'person' : 'people'} ·{' '}
-                        {formatSessionLength(row.minutes)}
+                        {formatSession(row.minutes, row.games)}
                     </p>
                     {row.depositCents !== null && (
                         <p className="text-sm text-muted-foreground">

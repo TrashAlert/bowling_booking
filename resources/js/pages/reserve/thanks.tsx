@@ -8,7 +8,7 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import {
-    formatSessionLength,
+    formatSession,
     formatShortDate,
     formatTime,
     formatTimeOfDay,
@@ -20,6 +20,7 @@ type SentRequest = {
     phone: string;
     partySize: number;
     minutes: number;
+    games: number | null;
     startsAt: string;
     // When we can call, as "HH:MM"; both null for any time.
     contactFrom: string | null;
@@ -40,7 +41,7 @@ export default function RequestSent({ request }: { request: SentRequest }) {
         ['Date', formatShortDate(request.startsAt)],
         [
             'Time',
-            `${formatTime(request.startsAt)} (${formatSessionLength(request.minutes)})`,
+            `${formatTime(request.startsAt)} (${formatSession(request.minutes, request.games)})`,
         ],
         [
             'Group',

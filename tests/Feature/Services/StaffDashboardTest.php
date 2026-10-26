@@ -7,6 +7,7 @@ use App\Models\LaneRepair;
 use App\Services\BookingCleanup;
 use App\Services\BookingService;
 use App\Services\LaneClosures;
+use App\Services\SchedulerHealth;
 use App\Services\StaffDashboard;
 use App\Services\WaitlistService;
 use App\Services\WaitlistSettings;
@@ -252,4 +253,17 @@ test('needs attention says while joining the waitlist online is closed', functio
     $attention = app(StaffDashboard::class)->attention();
 
     expect($attention['onlineJoiningClosed'])->toBeTrue();
+});
+
+test('needs attention lists the scheduled jobs that have stopped running', function () {
+    $this->travelTo('2026-10-26 12:00:00');
+    app(SchedulerHealth::class)->recordRun('waitlist:process');
+    $this->travel(10)->minutes();
+    foreach (['bookings:release-expired-holds', 'bookings:mark-no-shows', 'bookings:complete-finished'] as $job) {
+        app(SchedulerHealth::class)->recordRun($job);
+    }
+
+    $attention = app(StaffDashboard::class)->attention();
+
+    expect($attention['stalledJobs'])->toBe([['job' => 'waitlist:process', 'lastRunAt' => '2026-10-26T12:00:00+00:00']]);
 });

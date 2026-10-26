@@ -211,3 +211,13 @@ test('a party that is already seated is not skipped', function () {
     expect($entry->refresh()->status)->toBe(WaitlistStatus::Seated)
         ->and($entry->booking->status)->toBe(BookingStatus::CheckedIn);
 });
+
+test('a group called for games keeps its games on the session it is given', function () {
+    Lane::factory()->create();
+    app(WaitlistService::class)->joinAsNewCustomer('Farah', null, 120, 4, games: 3);
+
+    [$called] = app(WaitlistService::class)->callNextParties();
+
+    expect([$called->booking->games, $called->booking->minutes])->toBe([3, 120])
+        ->and($called->booking->allocations()->sole()->ends_at->toDateTimeString())->toBe('2026-10-01 20:00:00');
+});

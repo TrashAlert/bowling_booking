@@ -334,3 +334,57 @@ describe('the QR code of a party in line', function () {
         $response->assertNotFound();
     });
 });
+
+describe('adding a walk-in for games', function () {
+    test('a walk-in can book games, and its lane is kept for the time they take', function () {
+        config(['bowling.session_mode' => 'both']);
+        Lane::factory()->create();
+
+        $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.store'), [
+            'name' => 'Farah',
+            'party_size' => 4,
+            'games' => 3,
+        ]);
+
+        $response->assertRedirect(route('staff.board'));
+        $entry = WaitlistEntry::query()->sole();
+        expect([$entry->games, $entry->minutes])->toBe([3, 120]);
+    });
+
+    test('games are refused while the venue only sells time', function () {
+        Lane::factory()->create();
+
+        $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.store'), [
+            'name' => 'Farah',
+            'party_size' => 4,
+            'minutes' => 60,
+            'games' => 3,
+        ]);
+
+        $response->assertSessionHasErrors(['games' => 'The games field is prohibited.']);
+        expect(WaitlistEntry::query()->count())->toBe(0);
+    });
+
+    test('a number of games is needed while the venue only sells games', function () {
+        config(['bowling.session_mode' => 'games']);
+
+        $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.store'), [
+            'name' => 'Farah',
+            'party_size' => 4,
+        ]);
+
+        $response->assertSessionHasErrors(['games' => 'Pick how many games.']);
+    });
+
+    test('more games than a group can book are refused', function () {
+        config(['bowling.session_mode' => 'games', 'bowling.max_games' => 5]);
+
+        $response = $this->actingAs(User::factory()->staff()->create())->post(route('staff.waitlist.store'), [
+            'name' => 'Farah',
+            'party_size' => 4,
+            'games' => 6,
+        ]);
+
+        $response->assertSessionHasErrors(['games' => 'A group can book up to 5 games at once.']);
+    });
+});

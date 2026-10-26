@@ -23,7 +23,7 @@ import {
     formatCountdown,
     formatLanes,
     formatMoney,
-    formatSessionLength,
+    formatSession,
     formatTime,
     formatWait,
 } from '@/lib/format';
@@ -185,9 +185,9 @@ function Status({
 }
 
 const pushNotes: Record<Exclude<PushAlertState, 'unsupported'>, string> = {
-    off: 'A notification reaches your phone even when it is locked or this page is closed.',
+    off: 'A notification reaches your phone even when it is locked or this page is closed: once when your turn is near, and again when you are called.',
     working: 'Turning notifications on…',
-    on: 'Notifications are on. We will notify this phone when you are called, even if it is locked.',
+    on: 'Notifications are on. We will notify this phone when your turn is near, and again when you are called, even if it is locked.',
     blocked:
         'Notifications are blocked for this site. Allow them in your browser settings, then reload this page.',
     failed: 'Notifications could not be turned on. Please try again.',
@@ -320,7 +320,7 @@ export default function WaitlistShow({
                     <CardDescription>
                         {ticket.partySize}{' '}
                         {ticket.partySize === 1 ? 'person' : 'people'} ·{' '}
-                        {formatSessionLength(ticket.minutes)}
+                        {formatSession(ticket.minutes, ticket.games)}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">

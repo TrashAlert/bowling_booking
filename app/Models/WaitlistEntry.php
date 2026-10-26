@@ -20,6 +20,8 @@ class WaitlistEntry extends Model
         'called_at',
         'seated_at',
         'push_subscription',
+        'get_ready_sent_at',
+        'games',
     ];
 
     // Never send the secret token, or the phone's push address and keys, to
@@ -32,9 +34,11 @@ class WaitlistEntry extends Model
             'minutes' => 'integer',
             'party_size' => 'integer',
             'status' => WaitlistStatus::class,
+            'games' => 'integer',
             'called_at' => 'datetime',
             'seated_at' => 'datetime',
             'push_subscription' => 'array',
+            'get_ready_sent_at' => 'datetime',
         ];
     }
 

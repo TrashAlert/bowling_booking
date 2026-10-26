@@ -30,6 +30,7 @@ class WaitlistDepositController extends Controller
                 'name' => $deposit->name,
                 'partySize' => $deposit->party_size,
                 'minutes' => $deposit->minutes,
+                'games' => $deposit->games,
                 'amountCents' => $deposit->amount_cents,
             ],
             'payment' => [
@@ -49,14 +50,18 @@ class WaitlistDepositController extends Controller
      * to) puts the party in line at once. Otherwise the party is sent to
      * the provider's own payment page, and is put in line when the provider
      * tells us it has paid (see WaitlistDepositNoticeController). A party
-     * that comes back to pay after closing time is turned away.
+     * that comes back to pay when it can no longer join, such as after
+     * closing time, is turned away (see WaitlistDeposits::ensureCanPay()).
      */
     public function store(WaitlistDeposit $deposit, WaitlistDeposits $deposits): HttpResponse
     {
         abort_if($deposits->payPageExpired($deposit), 410);
 
+        // Checked again, as the party may come back to pay a while later:
+        // the venue may have closed, its session may no longer fit before
+        // closing time, or the wait may have grown past the limit.
         try {
-            $deposits->ensureOpen();
+            $deposits->ensureCanPay($deposit);
         } catch (InvalidStateException $exception) {
             throw ValidationException::withMessages(['closed' => $exception->getMessage()]);
         }

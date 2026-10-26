@@ -25,6 +25,7 @@ test('a day lists its reservations earliest first with their lanes', function ()
             'phone' => '0123456789',
             'partySize' => 14,
             'minutes' => 90,
+            'games' => null,
             'status' => 'confirmed',
             'startsAt' => '2026-10-01T13:00:00+00:00',
             'endsAt' => '2026-10-01T14:30:00+00:00',

@@ -4,6 +4,7 @@ use App\Http\Controllers\Staff\BoardController;
 use App\Http\Controllers\Staff\BookingCheckInController;
 use App\Http\Controllers\Staff\BookingExtensionController;
 use App\Http\Controllers\Staff\BookingRequestController;
+use App\Http\Controllers\Staff\LaneBlockController;
 use App\Http\Controllers\Staff\LaneClosureController;
 use App\Http\Controllers\Staff\LaneSessionController;
 use App\Http\Controllers\Staff\ReservationController;
@@ -29,6 +30,10 @@ Route::middleware(['auth', 'verified', 'staff'])->prefix('staff')->name('staff.'
     Route::patch('reservations/{booking}', [ReservationController::class, 'update'])->name('reservations.update');
     Route::delete('reservations/{booking}', [ReservationController::class, 'destroy'])->name('reservations.destroy');
     Route::patch('reservations/{booking}/lanes', [ReservationLaneController::class, 'update'])->name('reservations.lanes.update');
+
+    // Lanes kept for a league night or an event.
+    Route::post('lane-blocks', [LaneBlockController::class, 'store'])->name('lane-blocks.store');
+    Route::delete('lane-blocks/{laneBlock}', [LaneBlockController::class, 'destroy'])->name('lane-blocks.destroy');
 
     Route::get('requests', [BookingRequestController::class, 'index'])->name('requests.index');
     Route::delete('requests/{bookingRequest}', [BookingRequestController::class, 'destroy'])->name('requests.destroy');

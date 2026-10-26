@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ActivityLogEntry;
 use App\Models\Lane;
 use App\Models\WaitlistEntry;
 use App\Services\WaitlistPush;
@@ -105,4 +106,95 @@ test('a notification that fails is reported and the others are still sent', func
 
     Exceptions::assertReported(fn (RuntimeException $exception) => $exception->getMessage() === 'The push service is down.');
     expect($second->refresh()->push_subscription)->not->toBeNull();
+});
+
+/**
+ * A party with notifications on that joins the line behind a session with
+ * $minutesLeft to go on the venue's only lane.
+ */
+function waitingBehindSession(int $minutesLeft, string $name = 'Farah'): WaitlistEntry
+{
+    test()->travelTo('2026-10-01 18:00:00');
+    laneInPlay();
+    test()->travel(60 - $minutesLeft)->minutes();
+
+    return turnOnPush(joinWaitlist(name: $name));
+}
+
+test('a waiting party is told to get ready once its wait is down to 10 minutes', function () {
+    $entry = waitingBehindSession(minutesLeft: 10);
+
+    mock(WebPush::class)->shouldReceive('sendOneNotification')->once()
+        ->withArgs(fn (SubscriptionInterface $subscription, string $payload, array $options) => $subscription->getEndpoint() === 'https://fcm.googleapis.com/fcm/send/abc'
+            && json_decode($payload, true) === [
+                'title' => 'Get ready, Farah',
+                'body' => 'A lane should be ready for you in about 10 minutes. Start heading back to the counter so you are here when we call you.',
+                'url' => "/waitlist/{$entry->token}",
+            ]
+            && $options === ['TTL' => 600, 'urgency' => 'high'])
+        ->andReturn(pushAnswer(201));
+
+    $told = app(WaitlistPush::class)->notifyGetReady();
+
+    expect($told)->toBe(1)
+        ->and($entry->refresh()->get_ready_sent_at?->toDateTimeString())->toBe('2026-10-01 18:50:00')
+        ->and(ActivityLogEntry::query()->where('action', 'waitlist.get_ready')->sole()->summary)
+        ->toBe("Told Farah's group (4 people) to get ready: a lane is expected in about 10 minutes.");
+});
+
+test('a party with a longer wait is not told to get ready yet', function () {
+    $entry = waitingBehindSession(minutesLeft: 11);
+    mock(WebPush::class)->shouldNotReceive('sendOneNotification');
+
+    $told = app(WaitlistPush::class)->notifyGetReady();
+
+    expect($told)->toBe(0)
+        ->and($entry->refresh()->get_ready_sent_at)->toBeNull();
+});
+
+test('a party is told to get ready only once', function () {
+    waitingBehindSession(minutesLeft: 10);
+    mock(WebPush::class)->shouldReceive('sendOneNotification')->once()->andReturn(pushAnswer(201));
+    app(WaitlistPush::class)->notifyGetReady();
+    $this->travel(1)->minutes();
+
+    $told = app(WaitlistPush::class)->notifyGetReady();
+
+    expect($told)->toBe(0);
+});
+
+test('a party that never turned notifications on is not told to get ready', function () {
+    $this->travelTo('2026-10-01 18:00:00');
+    laneInPlay();
+    $this->travel(55)->minutes();
+    $entry = joinWaitlist();
+    mock(WebPush::class)->shouldNotReceive('sendOneNotification');
+
+    $told = app(WaitlistPush::class)->notifyGetReady();
+
+    expect($told)->toBe(0)
+        ->and($entry->refresh()->get_ready_sent_at)->toBeNull();
+});
+
+test('a party that has been called is not told to get ready', function () {
+    Lane::factory()->create();
+    turnOnPush(joinWaitlist());
+    app(WaitlistService::class)->callNextParties();
+    mock(WebPush::class)->shouldNotReceive('sendOneNotification');
+
+    $told = app(WaitlistPush::class)->notifyGetReady();
+
+    expect($told)->toBe(0);
+});
+
+test('no party is told to get ready while the key pair is not set up', function () {
+    config(['services.web_push.private_key' => null]);
+    $entry = waitingBehindSession(minutesLeft: 5);
+    mock(WebPush::class)->shouldNotReceive('sendOneNotification');
+
+    $told = app(WaitlistPush::class)->notifyGetReady();
+
+    // Not marked, so it is still told once notifications are set up.
+    expect($told)->toBe(0)
+        ->and($entry->refresh()->get_ready_sent_at)->toBeNull();
 });

@@ -8,7 +8,7 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { formatMoney, formatSessionLength } from '@/lib/format';
+import { formatMoney, formatSession } from '@/lib/format';
 import type { DepositPayment, PendingDeposit } from '@/types';
 
 // How often the page checks whether a payment made elsewhere has reached us.
@@ -42,7 +42,7 @@ export default function WaitlistDeposit({
             'Group',
             `${deposit.partySize} ${deposit.partySize === 1 ? 'person' : 'people'}`,
         ],
-        ['Playing for', formatSessionLength(deposit.minutes)],
+        ['Playing for', formatSession(deposit.minutes, deposit.games)],
         ['Deposit', amount],
     ];
 

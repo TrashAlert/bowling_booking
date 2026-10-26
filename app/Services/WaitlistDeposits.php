@@ -54,20 +54,24 @@ class WaitlistDeposits
      * pay it is put in line at once; otherwise it isn't in line yet and
      * takes no place in it.
      *
-     * @throws InvalidStateException when the venue is closed now.
+     * $games is set when it booked games, and $minutes is then the time they
+     * are expected to take.
+     *
+     * @throws InvalidStateException when the party can't join online now (see ensureCanJoin()).
      * @throws NoLaneAvailableException when no lane can be found for the session.
      */
-    public function start(string $name, string $phone, int $minutes, int $partySize): WaitlistDeposit
+    public function start(string $name, string $phone, int $minutes, int $partySize, ?int $games = null): WaitlistDeposit
     {
-        $this->ensureOpen();
+        $wait = $this->ensureCanJoin($minutes);
 
-        return DB::transaction(function () use ($name, $phone, $minutes, $partySize) {
+        return DB::transaction(function () use ($name, $phone, $minutes, $partySize, $games, $wait) {
             $deposit = WaitlistDeposit::create([
                 'name' => $name,
                 'phone' => $phone,
                 'minutes' => $minutes,
+                'games' => $games,
                 'party_size' => $partySize,
-                'amount_cents' => $this->amountDue($minutes),
+                'amount_cents' => $wait === 0 ? 0 : $this->depositCents(),
             ]);
 
             if ($deposit->amount_cents === 0) {
@@ -76,7 +80,7 @@ class WaitlistDeposits
                 $this->log->record('deposit.asked', sprintf(
                     '%s started joining online, for %s; a %s deposit is due.',
                     $this->log->party($name, $partySize),
-                    $this->log->length($minutes),
+                    $this->log->session($minutes, $games),
                     $this->log->money($deposit->amount_cents),
                 ), $deposit, customerName: $name);
             }
@@ -95,13 +99,87 @@ class WaitlistDeposits
      */
     public function amountDue(int $minutes): int
     {
-        $wait = $this->estimate->forNewParty()[$minutes] ?? null;
+        return $this->waitFor($minutes) === 0 ? 0 : $this->depositCents();
+    }
 
-        if ($wait === null) {
-            throw new NoLaneAvailableException(1, 0);
+    /**
+     * Turn away a party that can't join online now for a session of
+     * $minutes, and return its estimated wait in minutes otherwise. It is
+     * turned away while joining online or the venue is closed (see
+     * ensureOpen()), when no lane can be found for the session, when the
+     * wait is longer than an admin allows, and, unless an admin has turned
+     * it off, when its session would end after closing time. Groups already
+     * in the line are never affected.
+     *
+     * @throws InvalidStateException with what to tell the party.
+     * @throws NoLaneAvailableException when no lane can be found for the session.
+     */
+    public function ensureCanJoin(int $minutes): int
+    {
+        $this->ensureOpen();
+
+        $wait = $this->waitFor($minutes);
+
+        $this->ensureWithinLimits($minutes, $wait);
+
+        return $wait;
+    }
+
+    /**
+     * Turn away a party that comes back to pay its deposit when it can no
+     * longer join: the venue or joining online has closed since, or its wait
+     * or session no longer fit the limits. The limits are only checked while
+     * a wait can be worked out at all.
+     *
+     * @throws InvalidStateException with what to tell the party.
+     */
+    public function ensureCanPay(WaitlistDeposit $deposit): void
+    {
+        $this->ensureOpen();
+
+        $wait = $this->estimate->forNewParty()[$deposit->minutes] ?? null;
+
+        if ($wait !== null) {
+            $this->ensureWithinLimits($deposit->minutes, $wait);
+        }
+    }
+
+    /**
+     * Turn away a party whose wait is longer than an admin allows, or whose
+     * session, starting after the wait, would end after closing time, unless
+     * an admin has turned that off.
+     *
+     * @throws InvalidStateException with what to tell the party.
+     */
+    private function ensureWithinLimits(int $minutes, int $wait): void
+    {
+        $maxWait = $this->settings->maxWaitMinutes();
+
+        if ($maxWait !== null && $wait > $maxWait) {
+            throw new InvalidStateException(__('The wait is over :wait right now, so we are not adding more groups online. Please ask our staff at the counter.', [
+                'wait' => $this->log->length($maxWait),
+            ]));
         }
 
-        return $wait === 0 ? 0 : $this->depositCents();
+        $closesAt = $this->hours->closesNext(now());
+
+        if ($this->settings->finishByClosing() && $closesAt !== null && now()->addMinutes($wait + $minutes)->greaterThan($closesAt)) {
+            throw new InvalidStateException(__('We close at :time, and a session of :length joined now would end after that. Pick a shorter session, or ask our staff at the counter.', [
+                'time' => $this->log->time($closesAt),
+                'length' => $this->log->length($minutes),
+            ]));
+        }
+    }
+
+    /**
+     * The estimated wait in minutes for a party joining now for a session of
+     * $minutes.
+     *
+     * @throws NoLaneAvailableException when no lane can be found for the session.
+     */
+    private function waitFor(int $minutes): int
+    {
+        return $this->estimate->forNewParty()[$minutes] ?? throw new NoLaneAvailableException(1, 0);
     }
 
     /**
@@ -216,6 +294,7 @@ class WaitlistDeposits
                 $deposit->phone,
                 $deposit->minutes,
                 $deposit->party_size,
+                $deposit->games,
             );
 
             $deposit->update(['paid_at' => now(), 'waitlist_entry_id' => $entry->id]);

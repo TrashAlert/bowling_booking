@@ -20,16 +20,27 @@ class OnlineWaitlistController extends Controller
             'onlineOpen' => $settings->onlineJoiningOpen(),
             'closedMessage' => $settings->closedMessage(),
             'maxMessageLength' => WaitlistSettings::CLOSED_MESSAGE_LENGTH,
+            'finishByClosing' => $settings->finishByClosing(),
+            'maxWaitMinutes' => $settings->maxWaitMinutes(),
+            'maxWaitLimits' => WaitlistSettings::MAX_WAIT_LIMITS,
         ]);
     }
 
     /**
-     * Open or close joining the waitlist online. Groups already in the line
-     * stay in it either way, and staff can still add walk-ins.
+     * Open or close joining the waitlist online, and set its limits. Groups
+     * already in the line stay in it either way, and staff can still add
+     * walk-ins.
      */
     public function update(OnlineWaitlistUpdateRequest $request, WaitlistSettings $settings): RedirectResponse
     {
         $settings->setOnlineJoining($request->boolean('online_open'), $request->input('closed_message'));
+
+        if ($request->has('finish_by_closing') || $request->has('max_wait_minutes')) {
+            $settings->setJoinLimits(
+                $request->has('finish_by_closing') ? $request->boolean('finish_by_closing') : $settings->finishByClosing(),
+                $request->has('max_wait_minutes') ? ($request->filled('max_wait_minutes') ? $request->integer('max_wait_minutes') : null) : $settings->maxWaitMinutes(),
+            );
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => $settings->onlineJoiningOpen()
             ? __('Customers can join the waitlist online.')

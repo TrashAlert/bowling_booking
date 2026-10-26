@@ -41,13 +41,15 @@ class BookingRequests
         ?string $contactFrom,
         ?string $contactUntil,
         ?string $notes,
+        ?int $games = null,
     ): BookingRequest {
-        return DB::transaction(function () use ($name, $phone, $partySize, $minutes, $startsAt, $contactFrom, $contactUntil, $notes) {
+        return DB::transaction(function () use ($name, $phone, $partySize, $minutes, $startsAt, $contactFrom, $contactUntil, $notes, $games) {
             $request = BookingRequest::create([
                 'name' => $name,
                 'phone' => $phone,
                 'party_size' => $partySize,
                 'minutes' => $minutes,
+                'games' => $games,
                 'starts_at' => $startsAt->utc(),
                 'contact_from' => $contactFrom,
                 'contact_until' => $contactUntil,
@@ -59,7 +61,7 @@ class BookingRequests
                 '%s asked for a reservation on %s, for %s.',
                 $this->log->party($name, $partySize),
                 $this->log->when($startsAt),
-                $this->log->length($minutes),
+                $this->log->session($minutes, $games),
             ), $request, customerName: $name);
 
             return $request;
@@ -87,11 +89,12 @@ class BookingRequests
         CarbonImmutable $startsAt,
         ?string $notes,
         User $by,
+        ?int $games = null,
     ): Booking {
-        return DB::transaction(function () use ($request, $name, $phone, $lanes, $minutes, $partySize, $startsAt, $notes, $by) {
+        return DB::transaction(function () use ($request, $name, $phone, $lanes, $minutes, $partySize, $startsAt, $notes, $by, $games) {
             $request = $this->lockPending($request);
 
-            $booking = $this->bookings->reserveForNewCustomer($name, $phone, $lanes, $minutes, $partySize, $startsAt, $notes);
+            $booking = $this->bookings->reserveForNewCustomer($name, $phone, $lanes, $minutes, $partySize, $startsAt, $notes, $games);
 
             $request->update([
                 'status' => BookingRequestStatus::Confirmed,
@@ -183,6 +186,7 @@ class BookingRequests
      *     phone: string,
      *     partySize: int,
      *     minutes: int,
+     *     games: int|null,
      *     lanesNeeded: int,
      *     startsAt: string,
      *     contactFrom: string|null,
@@ -206,6 +210,7 @@ class BookingRequests
             'phone' => $request->phone,
             'partySize' => $request->party_size,
             'minutes' => $request->minutes,
+            'games' => $request->games,
             'lanesNeeded' => $this->bookings->lanesNeeded($request->party_size),
             'startsAt' => $request->starts_at->toIso8601String(),
             'contactFrom' => $this->clock($request->contact_from),

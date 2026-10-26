@@ -23,28 +23,31 @@ class WaitlistService
     }
 
     // Add a walk-in party that wants to play for $minutes to the end of the line.
-    public function join(Customer $customer, int $minutes, int $partySize): WaitlistEntry
+    // $games is set when it booked games, and $minutes is then the time they
+    // are expected to take.
+    public function join(Customer $customer, int $minutes, int $partySize, ?int $games = null): WaitlistEntry
     {
         return WaitlistEntry::create([
             'customer_id' => $customer->id,
             'minutes' => $minutes,
+            'games' => $games,
             'party_size' => $partySize,
             'status' => WaitlistStatus::Waiting,
         ]);
     }
 
     // Add a party we have no customer record for yet, e.g. a walk-in at the desk.
-    public function joinAsNewCustomer(string $name, ?string $phone, int $minutes, int $partySize): WaitlistEntry
+    public function joinAsNewCustomer(string $name, ?string $phone, int $minutes, int $partySize, ?int $games = null): WaitlistEntry
     {
-        return DB::transaction(function () use ($name, $phone, $minutes, $partySize) {
+        return DB::transaction(function () use ($name, $phone, $minutes, $partySize, $games) {
             $customer = Customer::create(['name' => $name, 'phone' => $phone]);
 
-            $entry = $this->join($customer, $minutes, $partySize);
+            $entry = $this->join($customer, $minutes, $partySize, $games);
 
             $this->log->record('waitlist.joined', sprintf(
                 '%s joined the line, for %s.',
                 $this->log->party($name, $partySize),
-                $this->log->length($minutes),
+                $this->log->session($minutes, $games),
             ), $entry, customerName: $name);
 
             return $entry;
@@ -190,6 +193,7 @@ class WaitlistService
                     BookingSource::WalkIn,
                     hold: true,
                     holdMinutes: config('bowling.waitlist_checkin_minutes'),
+                    games: $entry->games,
                 );
 
                 $entry->update([

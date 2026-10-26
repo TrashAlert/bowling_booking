@@ -7,6 +7,7 @@ import {
     Clock,
     EyeOff,
     Inbox,
+    TimerOff,
     TriangleAlert,
     Wrench,
 } from 'lucide-react';
@@ -45,6 +46,7 @@ import type {
     DashboardAttention,
     DashboardParts,
     DashboardRightNow,
+    ScheduledJob,
 } from '@/types';
 
 // How often the page asks again what the lanes are doing and what needs
@@ -84,10 +86,87 @@ type AttentionItem = {
     } | null;
 };
 
+// What each of the scheduler's every-minute jobs does, in a few words.
+const jobNames: Record<ScheduledJob, string> = {
+    'bookings:release-expired-holds':
+        'freeing lanes held for groups that did not check in',
+    'bookings:mark-no-shows': 'marking no-shows',
+    'bookings:complete-finished': 'finishing sessions',
+    'waitlist:process': 'calling the waitlist',
+};
+
 /**
- * Everything that needs dealing with, most pressing first: reservations
- * about to become no-shows, reservations stuck on a closed lane, requests
- * waiting for a call, then lanes that are out of order.
+ * The warning that the scheduler has stopped, or that some of its jobs have,
+ * or null while every job is running. Nothing about it can be fixed from the
+ * app, so it has no button: admins are told what to run, staff who to tell.
+ */
+function schedulerItem(
+    stalledJobs: DashboardAttention['stalledJobs'],
+    now: number,
+    isAdmin: boolean,
+): AttentionItem | null {
+    if (stalledJobs.length === 0) {
+        return null;
+    }
+
+    const allStopped = stalledJobs.length === Object.keys(jobNames).length;
+    const lastRuns = stalledJobs
+        .map((row) => row.lastRunAt)
+        .filter((at): at is string => at !== null)
+        .sort();
+    // The most recent run among the stopped jobs, if any of them ever ran.
+    const lastRun = lastRuns.at(-1) ?? null;
+    // Said of the whole scheduler, or of the jobs that have stopped.
+    const subject = allStopped
+        ? 'It'
+        : stalledJobs.length === 1
+          ? 'That job'
+          : 'Those jobs';
+    const since =
+        lastRun === null
+            ? `There is no record of ${allStopped ? 'it' : subject.toLowerCase()} running.`
+            : `${subject} last ran ${when(lastRun, now)}.`;
+
+    if (allStopped) {
+        return {
+            key: 'scheduler',
+            icon: TimerOff,
+            urgent: true,
+            title: 'The scheduler has stopped',
+            detail: `${since} Until it runs again, groups are only called when someone presses “Call next now”, and no-shows and finished sessions are not marked. ${
+                isAdmin
+                    ? 'Check that “php artisan schedule:run” runs every minute on this computer, as in the README.'
+                    : 'Tell whoever looks after this computer.'
+            }`,
+            action: null,
+        };
+    }
+
+    const names = stalledJobs.map((row) => jobNames[row.job]);
+    const list =
+        names.length === 1
+            ? names[0]
+            : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+
+    return {
+        key: 'scheduler',
+        icon: TimerOff,
+        urgent: true,
+        title: 'Part of the scheduler has stopped',
+        detail: `The scheduler has stopped ${list}; the rest still runs. ${since} ${
+            isAdmin
+                ? 'A job that crashed stays locked for up to a day. Running “php artisan schedule:clear-cache” on this computer frees it.'
+                : 'Tell whoever looks after this computer.'
+        }`,
+        action: null,
+    };
+}
+
+/**
+ * Everything that needs dealing with, most pressing first: the scheduler
+ * having stopped, reservations about to become no-shows, reservations stuck
+ * on a closed lane, requests waiting for a call, then lanes that are out of
+ * order.
  */
 function attentionItems(
     attention: DashboardAttention,
@@ -95,6 +174,12 @@ function attentionItems(
     isAdmin: boolean,
 ): AttentionItem[] {
     const items: AttentionItem[] = [];
+
+    const stalled = schedulerItem(attention.stalledJobs, now, isAdmin);
+
+    if (stalled) {
+        items.push(stalled);
+    }
 
     // Easy to forget once the night it was closed for is over.
     if (attention.onlineJoiningClosed) {

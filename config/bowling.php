@@ -22,6 +22,22 @@ return [
     // Settings, Booking rules.
     'max_session_minutes' => (int) env('BOWLING_MAX_SESSION_MINUTES', 240),
 
+    // Whether groups book a length of time, a number of games, or choose
+    // either: "time", "games" or "both". An admin can change it under
+    // Settings, Booking rules.
+    'session_mode' => env('BOWLING_SESSION_MODE', 'time'),
+
+    // For games: how long one person takes to bowl one game, in minutes.
+    // A group's lane is kept for its games times its people times this,
+    // rounded up to a session step. Staff end the session sooner if it
+    // finishes early, or extend it. An admin can change it under Settings,
+    // Booking rules.
+    'minutes_per_player_game' => (int) env('BOWLING_MINUTES_PER_PLAYER_GAME', 10),
+
+    // The most games one group can book at once. An admin can change it
+    // under Settings, Booking rules.
+    'max_games' => (int) env('BOWLING_MAX_GAMES', 10),
+
     // How many people share one lane. It is also the most that one walk-in
     // entry can hold: a bigger group is entered once per lane. An admin can
     // change it under Settings, Booking rules.
@@ -97,5 +113,10 @@ return [
     // they're skipped and the lane goes to the next party. An admin can
     // change it under Settings, Booking rules.
     'waitlist_checkin_minutes' => (int) env('BOWLING_WAITLIST_CHECKIN_MINUTES', 5),
+
+    // A waiting party that turned notifications on is told to get ready once
+    // its estimated wait is this many minutes or less, so it can be back at
+    // the counter by the time it is called. Each party is told once.
+    'get_ready_minutes' => (int) env('BOWLING_GET_READY_MINUTES', 10),
 
 ];

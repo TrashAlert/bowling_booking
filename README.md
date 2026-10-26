@@ -27,7 +27,7 @@ A simple booking site for bowling businesses using Laravel and React. This is ma
 | ------------ | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Dashboard    | `/dashboard`          | Where staff land after logging in: what the lanes and the line are doing right now, what needs attention, and how the venue has been doing over a chosen span of days.                                                             |
 | Lane board   | `/staff/board`        | See every lane at a glance, run the walk-in waitlist, check in reservations due in the next 24 hours. Refreshes every 5 seconds. On the lane board, each lane has a "⋯" menu to extend a session, end it early, or close the lane. |
-| Reservations | `/staff/reservations` | See one day's reservations, make, change and cancel them, and search every day by name or phone number.                                                                                                                            |
+| Reservations | `/staff/reservations` | See one day's reservations, make, change and cancel them, and search every day by name or phone number. Block lanes for a league night or an event.                                                                                |
 | Requests     | `/staff/requests`     | Reservation requests customers sent from `/reserve`, to call back and confirm or decline.                                                                                                                                          |
 | Settings     | `/settings`           | Profile, password and appearance. Admins also get the venue, booking and staff settings (see [Staff users](#staff-users)).                                                                                                         |
 
@@ -122,15 +122,22 @@ php artisan schedule:work
 
 This runs the scheduler, which `composer run dev` does **not** start. Without it, no-shows are never marked, finished sessions never complete, and the waitlist is never called automatically. It runs four jobs every minute, and one each night:
 
-| Command                          | What it does                                                                           |
-| -------------------------------- | -------------------------------------------------------------------------------------- |
-| `bookings:release-expired-holds` | Frees the lane held for a called walk-in that did not check in in time.                |
-| `bookings:mark-no-shows`         | Marks a reservation as a no-show once it is too late to check in, and frees its lanes. |
-| `bookings:complete-finished`     | Marks a session as completed when its time has run out.                                |
-| `waitlist:process`               | Skips parties who missed their call, then calls the next ones for free lanes.          |
-| `activity-log:prune`             | At 4:00 AM, removes activity log lines older than 18 months.                           |
+| Command                          | What it does                                                                                                               |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `bookings:release-expired-holds` | Frees the lane held for a called walk-in that did not check in in time.                                                    |
+| `bookings:mark-no-shows`         | Marks a reservation as a no-show once it is too late to check in, and frees its lanes.                                     |
+| `bookings:complete-finished`     | Marks a session as completed when its time has run out.                                                                    |
+| `waitlist:process`               | Skips parties who missed their call, calls the next ones for free lanes, and tells those nearly at the front to get ready. |
+| `activity-log:prune`             | At 4:00 AM, removes activity log lines older than 18 months.                                                               |
 
 On a server, run the scheduler with a cron entry for `php artisan schedule:run` every minute.
+
+The dashboard's **Needs attention** warns staff when the scheduler has stopped:
+
+- **What it watches:** each of the four every-minute jobs notes when it last finished, in the app's cache. A job that hasn't finished for 5 minutes is reported.
+- **One job stuck on its own:** it is named. A job that crashed stays locked for up to a day; `php artisan schedule:clear-cache` frees it.
+- **Emptying the cache** (`php artisan cache:clear`) clears these notes, so the warning shows until the jobs next run, a minute later.
+- **In development** the warning shows until `php artisan schedule:work` is running.
 
 ## Going live: staff inside the venue, customers from the internet
 
@@ -245,7 +252,7 @@ Once there is an admin, the rest can be done in the app. Under **Settings**, adm
 - **Lanes**: set how many lanes the venue has.
 - **Opening hours**: when the venue is open, day by day. Customers can only join the waitlist online, or pick a reservation time, while it is open. Until hours are saved the venue counts as always open. Staff are not limited by them.
 - **Booking rules**: the rules the waitlist and reservations follow, such as how long a called party has to check in.
-- **Online waitlist**: close joining the waitlist online, with a message for customers. Groups already in line stay in it, and staff can still add walk-ins.
+- **Online waitlist**: close joining the waitlist online, with a message for customers. Groups already in line stay in it, and staff can still add walk-ins. Also the last call before closing, and an optional longest wait for joining online.
 - **Deposit**: whether customers pay a deposit to join online when they would have to wait, and how much.
 - **Users**: add, edit and remove users, and reset their passwords.
 - **Dashboard**: which parts of the dashboard everyone sees.
@@ -263,6 +270,9 @@ Staff add a party to the waitlist with a name, an optional phone number (at leas
 
 - A customer fills in the form at `/waitlist/join`: name, phone (digits only, at least 10), up to 6 people and a session length.
 - One phone can have two groups in the line at once (a setting), and can send the form five times a minute. A bigger group asks at the counter.
+- **Last call:** a group can only join online if its session, starting after the estimated wait, ends by closing time. Late in the evening only shorter sessions can join; the form says so and the button is disabled. An admin can turn this off under **Settings → Online waitlist**. Groups already in the line are not affected and are still called after closing.
+- **Longest wait:** an admin can also set a wait above which groups are asked to come to the counter instead of joining online (no limit by default). Walk-ins added by staff are never limited.
+- Both are checked again when a group comes back to pay its deposit.
 - If a lane is free for them right now, there is no deposit and they are put in line at once. A lane that others are already waiting for does not count as free.
 - Otherwise they pay a deposit (RM 10.00 by default). They are only put in line once it is paid, at the end of the line as it stands at that moment.
 - They get a private page at `/waitlist/{token}` that refreshes every 5 seconds: their place in line, then their lane and a countdown when called, then when their session ends.
@@ -291,6 +301,13 @@ Copy the two lines it prints into `.env`. Without them the notification option i
 
 The notification is sent when the party is called, whether by the scheduler or by staff pressing "Call next now". The script that shows it on the phone is `public/sw.js`.
 
+A party with notifications on also gets a "get ready" notification once its estimated wait is 10 minutes or less (`BOWLING_GET_READY_MINUTES`), so it can be back at the counter by the time it is called:
+
+- It is sent once per party, by the scheduler, so it needs the scheduler running.
+- It is only a heads-up from the estimate. The time to check in still starts when the party is called.
+- A party whose wait grows again afterwards is not told a second time.
+- Each one is written to the activity log.
+
 ### Reservation requests from customers
 
 - A customer fills in `/reserve`: name, phone, date and start time (only times inside opening hours), length, party size, **when we can call them**, and a note. Nothing is booked and no lanes are held.
@@ -306,6 +323,27 @@ The notification is sent when the party is called, whether by the scheduler or b
 - Check-in opens 60 minutes before the start. Earlier than that it is refused.
 - A reservation not checked in within 15 minutes of its start becomes a no-show and its lanes are freed.
 - Staff can change or cancel a reservation until it is checked in.
+
+### Games instead of time
+
+Some venues sell games rather than time. Under **Settings → Booking rules**, **What groups book** is time only (the default), games only, or time or games, where the group picks. Once games are on, walk-ins, the online waitlist, staff reservations and the reservation request form all offer them.
+
+- **The lane is still kept for a time:** the games × the people on the lane × the minutes one person takes per game (10 by default), rounded up to the next half hour. For example, 4 people bowling 3 games keep a lane for 2 hours. A group bigger than one lane is spread over its lanes, which bowl side by side.
+- **Everything else follows from that time:** the wait estimate, calling the next group, the hour kept clear before a reservation, the opening hours check and the activity log.
+- **Staff end the session** from the lane's menu when the games are done early, or **extend** it if the group is slow, as for any session.
+- **Up to 10 games** per group by default.
+- **Shown everywhere a session is:** "3 games · about 2 h" on the lane board, the waitlist, the Reservations and Requests pages, and the customer's own pages.
+
+### Blocking lanes for leagues and events
+
+On the **Reservations** page, **Block lanes** keeps chosen lanes for something other than a booking, such as a league night, a private event or a school trip:
+
+- **What it asks:** what the lanes are for, the date, from and until when (a block can run past midnight, up to a day), the lanes, and how many weeks in a row.
+- **Repeating:** each further week is the same day of the week and the same clock time. If a lane is taken in any of the weeks, nothing is blocked, and the message names the lane and the day.
+- **Kept clear beforehand:** like a reservation, each lane closes for the lead time in Booking rules (60 minutes by default) before the start.
+- **While blocked:** nobody in the waitlist is called to the lane, and nothing else can be booked on it. The lane board shows it as "Blocked" with what it is for.
+- **Removing:** each week is removed on its own from that day's list. A block under way ends at once, and its lanes are free again.
+- **The activity log** has a line for each block made or removed.
 
 ### Sessions
 
@@ -358,12 +396,16 @@ The rules above are set in `config/bowling.php`. Most can be overridden in `.env
 | The venue's time zone, which opening hours are read in   | `BOWLING_TIMEZONE`                   | Asia/Kuala_Lumpur |
 | Session step, also the shortest session                  | `BOWLING_SESSION_STEP_MINUTES`       | 30 minutes        |
 | Longest session                                          | `BOWLING_MAX_SESSION_MINUTES`        | 240 minutes       |
+| Whether groups book time, games or either                | `BOWLING_SESSION_MODE`               | time              |
+| Minutes one person takes to bowl one game                | `BOWLING_MINUTES_PER_PLAYER_GAME`    | 10 minutes        |
+| Most games one group can book                            | `BOWLING_MAX_GAMES`                  | 10                |
 | People per lane, and per walk-in                         | `BOWLING_MAX_PLAYERS_PER_LANE`       | 6                 |
 | How long a lane is closed before a reservation           | `BOWLING_RESERVATION_LEAD_MINUTES`   | 60 minutes        |
 | How early a reservation can be checked in                | `BOWLING_CHECK_IN_OPENS_MINUTES`     | 60 minutes        |
 | How far ahead a reservation can be made                  | `BOWLING_RESERVATION_MAX_DAYS_AHEAD` | 90 days           |
 | How late a reservation can arrive before it is a no-show | `BOWLING_NO_SHOW_GRACE_MINUTES`      | 15 minutes        |
 | How long a called walk-in has to check in                | `BOWLING_WAITLIST_CHECKIN_MINUTES`   | 5 minutes         |
+| Wait at which a party is told to get ready               | `BOWLING_GET_READY_MINUTES`          | 10 minutes        |
 | Deposit to join the waitlist online, in cents            | `BOWLING_WAITLIST_DEPOSIT_CENTS`     | 1000 (RM 10.00)   |
 | Who takes that deposit                                   | `BOWLING_DEPOSIT_PAYMENT_PROVIDER`   | stand_in          |
 | Symbol shown in front of amounts of money                | `BOWLING_CURRENCY_SYMBOL`            | RM                |
@@ -386,6 +428,9 @@ Some rules can also be changed by an admin under **Settings**, with no need to e
 | How far ahead a reservation can be made                   | Booking rules     |
 | People per lane, and per walk-in                          | Booking rules     |
 | Longest session                                           | Booking rules     |
+| Whether groups book time, games or either                 | Booking rules     |
+| Minutes one person takes to bowl one game                 | Booking rules     |
+| Most games one group can book                             | Booking rules     |
 | Symbol shown in front of amounts of money                 | Business          |
 | The venue's time zone                                     | Business          |
 
@@ -575,7 +620,8 @@ vendor/bin/pint --dirty
 - The GitHub Actions workflow has a PostgreSQL service but has never run, and its `composer ci:check` step would fail for the reasons under [Tests and checks](#tests-and-checks).
 - Reservations confirmed from the online request form are saved as phone bookings, so the dashboard can't tell the two apart.
 - Late-night sessions are counted on their calendar day: a session at 12:30 am on a Friday night counts as Saturday.
-- The `has_bumpers` lane flag and the "Blocked" lane state (meant for league nights) appear on the lane board but nothing in the app can set them.
+- The `has_bumpers` lane flag appears on the lane board, but nothing in the app can set it.
+- A lane block can't be changed; remove it and block the lanes again. A block isn't flagged when one of its lanes goes out of order.
 
 ## Not built yet
 

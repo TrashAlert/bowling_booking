@@ -3,10 +3,8 @@ import { useState } from 'react';
 import WaitlistJoinController from '@/actions/App/Http/Controllers/WaitlistJoinController';
 import InputError from '@/components/input-error';
 import PhoneInput from '@/components/phone-input';
-import {
-    defaultSessionLength,
-    SessionLengthPicker,
-} from '@/components/staff/session-length-picker';
+import { SessionChoicePicker } from '@/components/staff/session-choice-picker';
+import { defaultSessionLength } from '@/components/staff/session-length-picker';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -17,7 +15,15 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { formatMoney, formatWait, formatWhen } from '@/lib/format';
+import { useServerClock } from '@/hooks/use-server-clock';
+import {
+    formatMoney,
+    formatSessionLength,
+    formatTime,
+    formatWait,
+    formatWhen,
+} from '@/lib/format';
+import { choiceMinutes, defaultChoice } from '@/lib/sessions';
 import type {
     OnlineWaitlistStatus,
     OpeningStatus,
@@ -26,6 +32,43 @@ import type {
 
 // How often the page asks again how long the wait is.
 const POLL_INTERVAL_MS = 30_000;
+
+/**
+ * Why a group can't join online for the session it picked, given its likely
+ * wait: the wait is longer than the venue takes online, or the session would
+ * end after closing time. Null while it can join.
+ */
+function joinLimitReached(
+    limits: { finishByClosing: boolean; maxWaitMinutes: number | null },
+    wait: number | null | undefined,
+    minutes: number,
+    closesAt: string | null,
+    now: number,
+): { title: string; detail: string } | null {
+    if (wait === null || wait === undefined) {
+        return null;
+    }
+
+    if (limits.maxWaitMinutes !== null && wait > limits.maxWaitMinutes) {
+        return {
+            title: `The wait is over ${formatSessionLength(limits.maxWaitMinutes)} right now`,
+            detail: 'We are not adding more groups online until it is shorter. Please ask our staff at the counter.',
+        };
+    }
+
+    if (
+        limits.finishByClosing &&
+        closesAt !== null &&
+        now + (wait + minutes) * 60_000 > Date.parse(closesAt)
+    ) {
+        return {
+            title: `We close at ${formatTime(closesAt)}`,
+            detail: 'A session that long, joined now, would end after closing time. Pick a shorter one, or ask our staff at the counter.',
+        };
+    }
+
+    return null;
+}
 
 /**
  * How long a party joining now is likely to wait, for the session length it
@@ -117,6 +160,8 @@ export default function WaitlistJoin({
     deviceLimit,
     opening,
     online,
+    joinLimits,
+    serverNow,
 }: {
     session: SessionRules;
     checkInMinutes: number;
@@ -133,19 +178,47 @@ export default function WaitlistJoin({
     opening: OpeningStatus;
     // And while an admin lets customers join online at all.
     online: OnlineWaitlistStatus;
+    // Whether a session must end by closing time, and the longest wait at
+    // which a group can still join; null for no limit.
+    joinLimits: { finishByClosing: boolean; maxWaitMinutes: number | null };
+    serverNow: string;
 }) {
     const { currencySymbol } = usePage().props;
     const deposit = formatMoney(depositCents, currencySymbol);
-    const [minutes, setMinutes] = useState(() => defaultSessionLength(session));
+    const [choice, setChoice] = useState(() =>
+        defaultChoice(session, defaultSessionLength(session)),
+    );
+    const [partySize, setPartySize] = useState('2');
+    // How long the lane would be kept: the length picked, or the time the
+    // games picked are expected to take. The wait is looked up for that.
+    const minutes = choiceMinutes(session, choice, Number(partySize));
     // No deposit is asked for while a lane is free for the session picked,
     // or at all while the venue has the deposit turned off.
     const laneIsFree = waitMinutes[minutes] === 0;
     const depositAsked = depositCents > 0;
     // Nothing to join, or pay for, while no lane can be found for the session.
     const noLane = !lanesOpen || waitMinutes[minutes] === null;
+    const now = useServerClock(serverNow);
+    // Why a group can't join online for the session picked, by the limits
+    // an admin set; null when it can. The server checks again on joining.
+    const limitReached = joinLimitReached(
+        joinLimits,
+        waitMinutes[minutes],
+        minutes,
+        opening.closesAt,
+        now,
+    );
 
     usePoll(POLL_INTERVAL_MS, {
-        only: ['waitMinutes', 'lanesOpen', 'deviceLimit', 'opening', 'online'],
+        only: [
+            'waitMinutes',
+            'lanesOpen',
+            'deviceLimit',
+            'opening',
+            'online',
+            'joinLimits',
+            'serverNow',
+        ],
     });
 
     if (!online.open) {
@@ -227,7 +300,10 @@ export default function WaitlistJoin({
                                             inputMode="numeric"
                                             min={1}
                                             max={session.maxPlayersPerLane}
-                                            defaultValue={2}
+                                            value={partySize}
+                                            onChange={(event) =>
+                                                setPartySize(event.target.value)
+                                            }
                                             required
                                         />
                                         <InputError
@@ -243,14 +319,19 @@ export default function WaitlistJoin({
 
                                 <fieldset className="grid gap-2">
                                     <legend className="mb-2 text-sm leading-none font-medium">
-                                        How long do you want to play?
+                                        {session.mode === 'games'
+                                            ? 'How many games do you want to play?'
+                                            : 'How long do you want to play?'}
                                     </legend>
-                                    <SessionLengthPicker
+                                    <SessionChoicePicker
                                         session={session}
-                                        value={minutes}
-                                        onChange={setMinutes}
+                                        value={choice}
+                                        onChange={setChoice}
+                                        partySize={Number(partySize)}
                                     />
-                                    <InputError message={errors.minutes} />
+                                    <InputError
+                                        message={errors.minutes ?? errors.games}
+                                    />
                                 </fieldset>
 
                                 <WaitEstimate
@@ -258,7 +339,9 @@ export default function WaitlistJoin({
                                     lanesOpen={lanesOpen}
                                 />
 
-                                {noLane || !depositAsked ? null : laneIsFree ? (
+                                {noLane ||
+                                !depositAsked ||
+                                limitReached !== null ? null : laneIsFree ? (
                                     <div className="rounded-lg border p-3 text-sm">
                                         <p className="font-medium">
                                             No deposit needed right now
@@ -294,6 +377,17 @@ export default function WaitlistJoin({
                                     </div>
                                 )}
 
+                                {!noLane && limitReached && (
+                                    <div className="rounded-lg border p-3 text-sm">
+                                        <p className="font-medium">
+                                            {limitReached.title}
+                                        </p>
+                                        <p className="mt-1 text-muted-foreground">
+                                            {limitReached.detail}
+                                        </p>
+                                    </div>
+                                )}
+
                                 {deviceLimit.reached && (
                                     <div className="rounded-lg border p-3 text-sm">
                                         <p className="font-medium">
@@ -325,6 +419,7 @@ export default function WaitlistJoin({
                                     disabled={
                                         processing ||
                                         noLane ||
+                                        limitReached !== null ||
                                         deviceLimit.reached
                                     }
                                 >

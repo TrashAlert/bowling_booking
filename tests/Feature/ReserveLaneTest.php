@@ -37,7 +37,7 @@ test('anyone can open the reservation page without logging in', function () {
 
     $response->assertInertia(fn (Assert $page) => $page
         ->component('reserve/lane')
-        ->where('session', ['stepMinutes' => 30, 'maxMinutes' => 240, 'maxPlayersPerLane' => 6])
+        ->where('session', ['stepMinutes' => 30, 'maxMinutes' => 240, 'maxPlayersPerLane' => 6, 'mode' => 'time', 'minutesPerPlayerGame' => 10, 'maxGames' => 10])
         ->where('limits', ['maxPartySize' => 200, 'maxDaysAhead' => 90])
         ->where('openingHours', null));
 });
@@ -88,6 +88,7 @@ test('the thank-you page repeats the request and when we will call', function ()
             'phone' => '0123456789',
             'partySize' => 8,
             'minutes' => 90,
+            'games' => null,
             'startsAt' => '2026-10-06T11:00:00+00:00',
             'contactFrom' => '14:00',
             'contactUntil' => '18:00',
@@ -168,3 +169,22 @@ test('sending requests is refused after five in a minute', function () {
     $response->assertTooManyRequests();
     $this->assertDatabaseCount('booking_requests', 5);
 });
+
+test('a customer can ask for games, and the time they take must fit the opening hours', function (int $games, bool $fits) {
+    config(['bowling.session_mode' => 'both']);
+    openDaily('10:00', '21:00');
+
+    // Eight people bowl on two lanes, four on each: 40 minutes a game, from 7pm.
+    $response = $this->post(route('booking-requests.store'), requestForm(['minutes' => null, 'games' => $games]));
+
+    if ($fits) {
+        $response->assertRedirect(route('booking-requests.thanks'));
+        expect(BookingRequest::query()->sole()->only(['games', 'minutes']))->toBe(['games' => $games, 'minutes' => $games * 40]);
+    } else {
+        $response->assertSessionHasErrors(['starts_at' => 'We are not open for the whole of that session. Pick another time or a shorter session.']);
+        expect(BookingRequest::query()->count())->toBe(0);
+    }
+})->with([
+    'three games, until 9pm' => [3, true],
+    'four games, past closing' => [4, false],
+]);

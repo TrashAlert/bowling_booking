@@ -13,6 +13,7 @@ use App\Models\BookingRequest;
 use App\Services\BookingRequests;
 use App\Services\BookingService;
 use App\Services\LaneAvailability;
+use App\Services\LaneBlocks;
 use App\Services\LaneBoard;
 use App\Services\ReservationSchedule;
 use Carbon\CarbonImmutable;
@@ -35,7 +36,7 @@ class ReservationController extends Controller
      * The lanes for the reservation form are only worked out when the form
      * asks for them, for the start time and length it has at that moment.
      */
-    public function index(Request $request, ReservationSchedule $schedule, LaneAvailability $availability, LaneBoard $board): Response
+    public function index(Request $request, ReservationSchedule $schedule, LaneAvailability $availability, LaneBoard $board, LaneBlocks $blocks): Response
     {
         $query = $request->validate([
             'date' => ['nullable', 'date_format:Y-m-d'],
@@ -55,6 +56,10 @@ class ReservationController extends Controller
                 // Midnight to midnight on that device's clock; 23 or 25 hours on a clock-change day.
                 ? $schedule->between($dayStart, $dayStart->addDay())
                 : $schedule->search($search),
+            // Lanes blocked for a league night or an event that day; none
+            // while searching.
+            'blocks' => $search === null ? $blocks->between($dayStart, $dayStart->addDay()) : [],
+            'maxBlockWeeks' => LaneBlocks::MAX_WEEKS,
             'session' => $board->sessionRules(),
             'limits' => [
                 'maxPartySize' => ReservationRequest::MAX_PARTY_SIZE,
@@ -80,20 +85,22 @@ class ReservationController extends Controller
                     $request->string('name')->toString(),
                     $request->string('phone')->toString(),
                     $request->lanes(),
-                    $request->integer('minutes'),
+                    $request->sessionMinutes(),
                     $request->integer('party_size'),
                     $request->startsAt(),
                     $request->input('notes'),
                     $request->user(),
+                    $request->games(),
                 )
                 : $bookings->reserveForNewCustomer(
                     $request->string('name')->toString(),
                     $request->string('phone')->toString(),
                     $request->lanes(),
-                    $request->integer('minutes'),
+                    $request->sessionMinutes(),
                     $request->integer('party_size'),
                     $request->startsAt(),
                     $request->input('notes'),
+                    $request->games(),
                 );
         } catch (NoLaneAvailableException $exception) {
             $this->failLanes($exception);
@@ -121,10 +128,11 @@ class ReservationController extends Controller
                 $request->string('name')->toString(),
                 $request->string('phone')->toString(),
                 $request->lanes(),
-                $request->integer('minutes'),
+                $request->sessionMinutes(),
                 $request->integer('party_size'),
                 $request->startsAt(),
                 $request->input('notes'),
+                $request->games(),
             );
 
             Inertia::flash('toast', ['type' => 'success', 'message' => __('The reservation was updated.')]);
