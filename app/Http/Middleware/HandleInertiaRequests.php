@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Services\BookingRequests;
 use App\Services\Branding;
+use App\Services\DemoVenue;
 use App\Services\FrontPage;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -47,6 +48,9 @@ class HandleInertiaRequests extends Middleware
             // up; null when there is none or it has ended.
             'announcement' => fn () => app(FrontPage::class)->currentAnnouncement(),
             'version' => config('bowling.version'),
+            // On the public demo only: the logins to try, and when it starts
+            // afresh. Null everywhere else.
+            'demo' => DemoVenue::forPages(),
             'currencySymbol' => config('bowling.currency_symbol'),
             // How many reservation requests are waiting, for the staff sidebar.
             'requestsWaiting' => fn () => $request->user()?->isStaff()

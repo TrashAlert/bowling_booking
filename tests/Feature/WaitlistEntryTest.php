@@ -1,8 +1,10 @@
 <?php
 
 use App\Enums\WaitlistStatus;
+use App\Models\ActivityLogEntry;
 use App\Models\Lane;
 use App\Services\BookingService;
+use App\Services\LaneBlocks;
 use App\Services\WaitlistDeposits;
 use App\Services\WaitlistService;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -36,6 +38,8 @@ test('a waiting party sees its place in line and nothing about anyone else', fun
             'deposit' => ['amountCents' => 1000, 'outcome' => 'held'],
             'pushOn' => false,
             'passedOver' => false,
+            'canChange' => true,
+            'changed' => false,
         ])
         ->where('checkInMinutes', 5)
         ->where('serverNow', '2026-10-01T18:01:00+00:00'));
@@ -228,3 +232,105 @@ test('a link that matches no party returns 404', function (string $method, strin
     'leaving with an unknown link' => ['delete', str_repeat('x', 40)],
     'a link of the wrong length' => ['get', 'too-short'],
 ]);
+
+describe('a group changing itself', function () {
+    test('a waiting group can change its name, size and length, and keeps its place', function () {
+        joinWaitlist(name: 'Party ahead');
+        $this->travel(1)->minutes();
+        $entry = joinWaitlistOnline(minutes: 60, partySize: 3, name: 'Farah');
+
+        $response = $this->patch(route('waitlist.update', ['entry' => $entry->token]), ['name' => 'Farah Aziz', 'party_size' => 5, 'minutes' => 90]);
+
+        $response->assertRedirect(route('waitlist.show', ['entry' => $entry->token]));
+        $entry->refresh();
+        expect([$entry->customer->name, $entry->party_size, $entry->minutes, $entry->position()])->toBe(['Farah Aziz', 5, 90, 2])
+            ->and($entry->changed_at?->toDateTimeString())->toBe('2026-10-01 18:01:00')
+            ->and(ActivityLogEntry::query()->where('action', 'waitlist.changed')->sole()->changes)->toBe([
+                'Name' => ['Farah', 'Farah Aziz'],
+                'People' => [3, 5],
+                'Session' => ['1 hour', '1 hour 30 minutes'],
+            ]);
+    });
+
+    test('a group can only change itself once', function () {
+        $entry = joinWaitlistOnline(minutes: 60, partySize: 3, name: 'Farah');
+        $this->patch(route('waitlist.update', ['entry' => $entry->token]), ['name' => 'Farah', 'party_size' => 4, 'minutes' => 60]);
+
+        $response = $this->patch(route('waitlist.update', ['entry' => $entry->token]), ['name' => 'Farah', 'party_size' => 6, 'minutes' => 120]);
+
+        $response->assertSessionHasErrors(['change' => 'Your group has already been changed once, so it can\'t be changed again.']);
+        expect($entry->refresh()->only(['party_size', 'minutes']))->toBe(['party_size' => 4, 'minutes' => 60]);
+        $this->get(route('waitlist.show', ['entry' => $entry->token]))
+            ->assertInertia(fn (Assert $page) => $page->where('ticket.canChange', false)->where('ticket.changed', true));
+    });
+
+    test('sending the form with nothing changed does not use up the change', function () {
+        $entry = joinWaitlistOnline(minutes: 60, partySize: 3, name: 'Farah');
+
+        $this->patch(route('waitlist.update', ['entry' => $entry->token]), ['name' => 'Farah', 'party_size' => 3, 'minutes' => 60]);
+
+        expect($entry->refresh()->changed_at)->toBeNull();
+    });
+
+    test('a group that has been called can no longer change itself', function () {
+        Lane::factory()->create();
+        $entry = joinWaitlistOnline(minutes: 60, partySize: 3, name: 'Farah');
+        app(WaitlistService::class)->callNextParties();
+
+        $response = $this->patch(route('waitlist.update', ['entry' => $entry->token]), ['name' => 'Farah', 'party_size' => 4, 'minutes' => 60]);
+
+        $response->assertSessionHasErrors(['change' => 'Your group can only be changed while it is waiting in line.']);
+        expect($entry->refresh()->party_size)->toBe(3);
+    });
+
+    test('a longer session must still end by closing time, and a shorter one is always allowed', function (int $minutes, bool $allowed) {
+        openDaily('10:00', '23:00');
+        $this->travelTo(venueTime('2026-10-05 21:30'));
+        Lane::factory()->create();
+        $entry = joinWaitlist(minutes: 60, name: 'Farah');
+
+        $response = $this->patch(route('waitlist.update', ['entry' => $entry->token]), ['name' => 'Farah', 'party_size' => 4, 'minutes' => $minutes]);
+
+        if ($allowed) {
+            $response->assertSessionHasNoErrors();
+            expect($entry->refresh()->minutes)->toBe($minutes);
+        } else {
+            $response->assertSessionHasErrors(['change' => 'We close at 11:00 PM, and that session would end after it. Pick a shorter one.']);
+            expect($entry->refresh()->minutes)->toBe(60);
+        }
+    })->with([
+        'longer, past closing' => [120, false],
+        'shorter' => [30, true],
+    ]);
+
+    test('a group bigger than a lane takes is refused', function () {
+        $entry = joinWaitlistOnline(minutes: 60, partySize: 3, name: 'Farah');
+
+        $response = $this->patch(route('waitlist.update', ['entry' => $entry->token]), ['name' => 'Farah', 'party_size' => 7, 'minutes' => 60]);
+
+        $response->assertSessionHasErrors(['party_size' => 'A lane takes up to 6 people.']);
+        expect($entry->refresh()->changed_at)->toBeNull();
+    });
+
+    test('a group whose page has expired cannot change itself', function () {
+        $entry = joinWaitlistOnline(minutes: 60, partySize: 3, name: 'Farah');
+        app(WaitlistService::class)->leave($entry);
+        $this->travel(25)->hours();
+
+        $response = $this->patch(route('waitlist.update', ['entry' => $entry->token]), ['name' => 'Farah', 'party_size' => 4, 'minutes' => 60]);
+
+        $response->assertGone();
+    });
+});
+
+test('a change that leaves no lane for the group is refused', function () {
+    $lane = Lane::factory()->create();
+    // The only lane is kept clear from an hour from now, for two days.
+    app(LaneBlocks::class)->block(collect([$lane]), now()->addHours(2), 2880, 'Closed for a refit');
+    $entry = joinWaitlist(minutes: 60, name: 'Farah');
+
+    $response = $this->patch(route('waitlist.update', ['entry' => $entry->token]), ['name' => 'Farah', 'party_size' => 4, 'minutes' => 180]);
+
+    $response->assertSessionHasErrors(['change' => 'We can\'t find a lane for that. Try a shorter session.']);
+    expect($entry->refresh()->minutes)->toBe(60);
+});

@@ -35,6 +35,10 @@ export type WaitlistTicket = {
     // True while the party waits and a group that joined after it has been
     // called or seated first: its session fitted a lane free for less time.
     passedOver: boolean;
+    // Whether the group can still change its name, size or length itself,
+    // which it can do once while waiting, and whether it already has.
+    canChange: boolean;
+    changed: boolean;
     // Null for a walk-in added by staff, who pays no deposit.
     deposit: {
         amountCents: number;

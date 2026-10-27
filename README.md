@@ -35,7 +35,7 @@ A simple booking site for bowling businesses using Laravel and React. This is ma
 
 | Page              | Address          | State                                                                                                                                                      |
 | ----------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Front page        | `/`              | The main page. Show the business name and two cards: waitlist and reservations.                                                                            |
+| Front page        | `/`              | The main page. Show the business name and two cards: waitlist and reservations. The waitlist card is left off while joining online is closed.              |
 | Join the waitlist | `/waitlist/join` | Working, with a **stand-in payment**. A party fills in the form, pays a deposit, and gets a private page showing its place in line. No money is taken yet. |
 | Reserve a lane    | `/reserve`       | Working. The customer sends a request with a time they can be called; staff phone them and confirm it from **Requests**. Nothing is booked until then.     |
 
@@ -278,6 +278,7 @@ Staff add a party to the waitlist with a name, an optional phone number (at leas
 - They get a private page at `/waitlist/{token}` that refreshes every 5 seconds: their place in line, then their lane and a countdown when called, then when their session ends.
 - That page, and the deposit page, ask search engines not to list them. A day after the group's visit ends (it left, missed its call, or finished playing), the page shows "This page has expired" with nothing about the group. An unpaid deposit page expires a day after it was started.
 - A group is called when a lane is free for its whole session, so a group behind it that wants a shorter session can be called first. The page then says so, and the group keeps its place.
+- **Changing the group:** while it is waiting, a group can change its name, how many people and how long it plays from its own page, once, and keeps its place in line. After that it is locked: it can't be changed again, by the group or by staff. A change that leaves no lane for the group is refused, and so is a longer session that would end after closing while the last call is on. Each change is in the activity log, with what it was before.
 - The phone remembers each place-in-line page it has opened, so a customer who closed it is led back from the front page with a "View your place" button. This only works in the same browser: a page opened inside Instagram's or WhatsApp's own browser isn't known to Chrome or Safari.
 - The deposit comes off their bill if they play. It is returned if they leave before being called, and kept if they are called and do not check in within 5 minutes.
 - The form and the private page show an estimated wait. It plays the line forward using what is booked on each lane, so it is only as good as sessions ending on time.
@@ -580,6 +581,19 @@ The main services:
 | `WaitlistPlaces`                   | Remembers which place-in-line pages a phone has opened, for the way back on the front page.  |
 
 Every span of time a lane is taken is one row in `lane_allocations`: a session, the closed hour before a reservation, or a closure. The database constraint `lane_allocations_no_overlap` refuses any two live rows that overlap on the same lane. That constraint is what enforces every "the lane is taken" rule, so new code should rely on it and not work around it.
+
+## The demo
+
+A separate copy of the app can run as a public demo, "Strike Zone Bowling", for venue owners to try. It is a made-up venue with an evening in full swing and four weeks of history behind it.
+
+- **Switch:** `BOWLING_DEMO=true` in that copy's `.env`. Never at a real venue.
+- **Its own database,** whose name contains "demo", e.g. `bowling_demo`.
+- **`php artisan demo:reset`** empties that database and sets the demo up again, as it is at that moment. It refuses to run unless demo mode is on and the database's name contains "demo". On the demo, the scheduler runs it every day at 9:00 AM, when the venue opens.
+- **`php artisan demo:liven`** plays the venue's customers so it stays busy all day: called groups are seated, reservations check in, groups join the line and requests come in. On the demo, the scheduler runs it every two minutes while the venue is open. It refuses to run anywhere else.
+- **[DEMO.md](DEMO.md)** has how to host the demo and a walkthrough for presenting it to a venue owner.
+- **Logins:** owner (admin) `owner@demo.test` / `demo-owner`, counter staff `counter@demo.test` / `demo-counter`.
+- **On every page** a banner says the venue is made up, shared by every visitor and reset daily, with links to the customer and staff sides. The login page has a button for each login.
+- **Turned off in the demo**, so no visitor can spoil it for the others: adding, changing or removing user accounts, changing your own name, email or password, and uploading a logo or cover photo. Everything else, settings included, can be tried and is put back by the next reset.
 
 ## Tests and checks
 

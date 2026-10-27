@@ -22,6 +22,7 @@ class WaitlistEntry extends Model
         'push_subscription',
         'get_ready_sent_at',
         'games',
+        'changed_at',
     ];
 
     // Never send the secret token, or the phone's push address and keys, to
@@ -39,6 +40,7 @@ class WaitlistEntry extends Model
             'seated_at' => 'datetime',
             'push_subscription' => 'array',
             'get_ready_sent_at' => 'datetime',
+            'changed_at' => 'datetime',
         ];
     }
 

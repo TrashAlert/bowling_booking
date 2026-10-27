@@ -1,6 +1,10 @@
 import { Form, Head, Link, usePage, usePoll } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import InputError from '@/components/input-error';
+import { SessionChoicePicker } from '@/components/staff/session-choice-picker';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Card,
     CardContent,
@@ -28,7 +32,8 @@ import {
     formatWait,
 } from '@/lib/format';
 import { join } from '@/routes/waitlist';
-import type { WaitlistTicket } from '@/types';
+import { choiceOf } from '@/lib/sessions';
+import type { SessionRules, WaitlistTicket } from '@/types';
 
 // How often the page asks where the party is in line.
 const POLL_INTERVAL_MS = 5000;
@@ -257,6 +262,118 @@ function CallAlert({
 }
 
 /**
+ * Where a waiting group changes its name, how many people, or how long it
+ * plays, keeping its place in line. It can do this once; the form says so
+ * before it is sent. Sent to the page's own address.
+ */
+function ChangeGroupDialog({
+    ticket,
+    session,
+    action,
+    onClose,
+}: {
+    ticket: WaitlistTicket;
+    session: SessionRules;
+    action: string;
+    onClose: () => void;
+}) {
+    const [partySize, setPartySize] = useState(String(ticket.partySize));
+    const [choice, setChoice] = useState(() =>
+        choiceOf(ticket.minutes, ticket.games),
+    );
+
+    return (
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+                <DialogTitle>Change your group</DialogTitle>
+                <DialogDescription>
+                    You keep your place in line. You can change your group only
+                    once, so check it before you save.
+                </DialogDescription>
+
+                <Form
+                    action={action}
+                    method="patch"
+                    options={{ preserveScroll: true }}
+                    onSuccess={onClose}
+                    className="space-y-5"
+                >
+                    {({ processing, errors }) => (
+                        <>
+                            <div className="grid gap-2">
+                                <Label htmlFor="change-name">Name</Label>
+                                <Input
+                                    id="change-name"
+                                    name="name"
+                                    defaultValue={ticket.customerName}
+                                    required
+                                    maxLength={255}
+                                    autoComplete="name"
+                                />
+                                <InputError message={errors.name} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="change-party-size">
+                                    How many people
+                                </Label>
+                                <Input
+                                    id="change-party-size"
+                                    name="party_size"
+                                    type="number"
+                                    inputMode="numeric"
+                                    min={1}
+                                    max={session.maxPlayersPerLane}
+                                    value={partySize}
+                                    onChange={(event) =>
+                                        setPartySize(event.target.value)
+                                    }
+                                    required
+                                    className="w-24"
+                                />
+                                <InputError message={errors.party_size} />
+                            </div>
+
+                            <fieldset className="grid gap-2">
+                                <legend className="mb-2 text-sm leading-none font-medium">
+                                    {session.mode === 'games'
+                                        ? 'How many games?'
+                                        : 'How long do you want to play?'}
+                                </legend>
+                                <SessionChoicePicker
+                                    session={session}
+                                    value={choice}
+                                    onChange={setChoice}
+                                    partySize={Number(partySize)}
+                                />
+                                <InputError
+                                    message={errors.minutes ?? errors.games}
+                                />
+                            </fieldset>
+
+                            <InputError message={errors.change} />
+
+                            <DialogFooter className="gap-2">
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={onClose}
+                                >
+                                    Keep it as it is
+                                </Button>
+                                <Button type="submit" disabled={processing}>
+                                    Save, once
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+/**
  * A party's own page about its place in the waitlist, reached by the secret
  * link it was given. It refreshes itself while the party is waiting, called
  * or playing, and alerts the party when it is called. Leaving posts back to
@@ -267,16 +384,20 @@ export default function WaitlistShow({
     checkInMinutes,
     serverNow,
     pushKey,
+    session,
 }: {
     ticket: WaitlistTicket;
     checkInMinutes: number;
     serverNow: string;
     // The server's public key for notifications; null while they aren't set up.
     pushKey: string | null;
+    // What a session can be, for the form where the group changes itself.
+    session: SessionRules;
 }) {
     const { props, url } = usePage();
     const now = useServerClock(serverNow);
     const [leaving, setLeaving] = useState(false);
+    const [changing, setChanging] = useState(false);
 
     const inLine = ticket.status === 'waiting' || ticket.status === 'called';
     const isOver = ticket.status === 'skipped' || ticket.status === 'left';
@@ -344,6 +465,23 @@ export default function WaitlistShow({
 
                     {note && <p className="text-sm font-medium">{note}</p>}
 
+                    {ticket.canChange && (
+                        <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setChanging(true)}
+                        >
+                            Change my group
+                        </Button>
+                    )}
+
+                    {ticket.changed && ticket.status === 'waiting' && (
+                        <p className="text-sm text-muted-foreground">
+                            You have changed your group, so it can't be changed
+                            again.
+                        </p>
+                    )}
+
                     {inLine && (
                         <Button
                             variant="outline"
@@ -367,6 +505,15 @@ export default function WaitlistShow({
                     Keep this page open or save its address. It is your place in
                     line.
                 </p>
+            )}
+
+            {changing && ticket.canChange && (
+                <ChangeGroupDialog
+                    ticket={ticket}
+                    session={session}
+                    action={url.split('?')[0]}
+                    onClose={() => setChanging(false)}
+                />
             )}
 
             <Dialog open={leaving && inLine} onOpenChange={setLeaving}>

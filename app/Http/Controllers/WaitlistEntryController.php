@@ -2,13 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InvalidStateException;
+use App\Http\Requests\ChangeWaitlistGroupRequest;
 use App\Models\WaitlistEntry;
+use App\Services\LaneBoard;
+use App\Services\WaitlistChanges;
 use App\Services\WaitlistPlaces;
 use App\Services\WaitlistPush;
 use App\Services\WaitlistService;
 use App\Services\WaitlistTicket;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,7 +25,7 @@ class WaitlistEntryController extends Controller
      * so the front page can lead back to it. A day after the visit ends the
      * page is gone, with nothing on it about the party.
      */
-    public function show(Request $request, WaitlistEntry $entry, WaitlistTicket $ticket, WaitlistPush $push, WaitlistPlaces $places): Response
+    public function show(Request $request, WaitlistEntry $entry, WaitlistTicket $ticket, WaitlistPush $push, WaitlistPlaces $places, LaneBoard $board): Response
     {
         abort_if($ticket->expired($entry), 410);
 
@@ -33,7 +38,32 @@ class WaitlistEntryController extends Controller
             'pushKey' => $push->isConfigured() ? config('services.web_push.public_key') : null,
             'checkInMinutes' => config('bowling.waitlist_checkin_minutes'),
             'serverNow' => now()->toIso8601String(),
+            // For the form where the group changes itself, once.
+            'session' => $board->sessionRules(),
         ]);
+    }
+
+    /**
+     * The group changes its name, size or length, keeping its place in line.
+     * It can do so once, while it is waiting; after that it is locked.
+     */
+    public function update(ChangeWaitlistGroupRequest $request, WaitlistEntry $entry, WaitlistTicket $ticket, WaitlistChanges $changes): RedirectResponse
+    {
+        abort_if($ticket->expired($entry), 410);
+
+        try {
+            $changes->change(
+                $entry,
+                $request->string('name')->trim()->toString(),
+                $request->integer('party_size'),
+                $request->sessionMinutes(),
+                $request->games(),
+            );
+        } catch (InvalidStateException $exception) {
+            throw ValidationException::withMessages(['change' => $exception->getMessage()]);
+        }
+
+        return to_route('waitlist.show', ['entry' => $entry->token]);
     }
 
     /**

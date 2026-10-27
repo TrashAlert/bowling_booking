@@ -10,6 +10,12 @@ return [
     // here with each change that should be tracked.
     'version' => '1.8.0',
 
+    // Whether this copy of the app is the public demo, "Strike Zone
+    // Bowling", which anyone may try and which is reset every day. Only then
+    // can "php artisan demo:reset" empty the database, and only one whose
+    // name contains "demo". Never turn this on at a real venue.
+    'demo' => (bool) env('BOWLING_DEMO', false),
+
     // The venue's time zone. Opening hours are clock times in this zone. An
     // admin can change it under Settings, Business.
     'timezone' => env('BOWLING_TIMEZONE', 'Asia/Kuala_Lumpur'),

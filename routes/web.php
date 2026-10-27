@@ -46,6 +46,11 @@ Route::get('waitlist/{entry:token}', [WaitlistEntryController::class, 'show'])
 Route::delete('waitlist/{entry:token}', [WaitlistEntryController::class, 'destroy'])
     ->where('entry', '[A-Za-z0-9]{40}')
     ->name('waitlist.destroy');
+// The group changes its name, size or length, once.
+Route::patch('waitlist/{entry:token}', [WaitlistEntryController::class, 'update'])
+    ->where('entry', '[A-Za-z0-9]{40}')
+    ->middleware('throttle:10,1')
+    ->name('waitlist.update');
 Route::put('waitlist/{entry:token}/push', [WaitlistPushSubscriptionController::class, 'store'])
     ->where('entry', '[A-Za-z0-9]{40}')
     ->middleware('throttle:10,1')

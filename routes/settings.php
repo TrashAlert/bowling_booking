@@ -19,7 +19,8 @@ Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', '/settings/profile');
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
+    // On the demo, the shared logins' names and emails stay as they are.
+    Route::patch('settings/profile', [ProfileController::class, 'update'])->middleware('not-in-demo')->name('profile.update');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -28,7 +29,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('security.edit');
 
     Route::put('settings/password', [SecurityController::class, 'update'])
-        ->middleware('throttle:6,1')
+        ->middleware(['not-in-demo', 'throttle:6,1'])
         ->name('user-password.update');
 
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
@@ -65,7 +66,8 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::post('settings/activity-log/verify', [ActivityLogController::class, 'verify'])->name('activity-log.verify');
 
     Route::get('settings/users', [UserController::class, 'index'])->name('users.index');
-    Route::post('settings/users', [UserController::class, 'store'])->name('users.store');
-    Route::patch('settings/users/{user}', [UserController::class, 'update'])->name('users.update');
-    Route::delete('settings/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    // On the demo, nobody can change who can log in.
+    Route::post('settings/users', [UserController::class, 'store'])->middleware('not-in-demo')->name('users.store');
+    Route::patch('settings/users/{user}', [UserController::class, 'update'])->middleware('not-in-demo')->name('users.update');
+    Route::delete('settings/users/{user}', [UserController::class, 'destroy'])->middleware('not-in-demo')->name('users.destroy');
 });

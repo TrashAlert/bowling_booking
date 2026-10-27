@@ -77,7 +77,7 @@ export default function OnlineWaitlist({
                                 <p className="text-sm text-muted-foreground">
                                     {open
                                         ? 'Customers can add their group to the line from the website, during opening hours.'
-                                        : 'The website tells customers to come to the counter instead. Groups already in the line stay in it and are still called, and staff can still add walk-ins.'}
+                                        : 'The waitlist card is taken off the front page, so only the reservation card is left. Groups already in the line stay in it and are still called, and staff can still add walk-ins.'}
                                 </p>
 
                                 <InputError message={errors.online_open} />
@@ -97,8 +97,10 @@ export default function OnlineWaitlist({
                                 <p className="text-sm text-muted-foreground">
                                     Optional, up to {maxMessageLength}{' '}
                                     characters, for example "Closed tonight for
-                                    a private event." Leave it empty for the
-                                    words shown in grey.
+                                    a private event." Shown to anyone who opens
+                                    the join page from a saved link or a shared
+                                    address. Leave it empty for the words shown
+                                    in grey.
                                 </p>
                                 <InputError message={errors.closed_message} />
                             </div>

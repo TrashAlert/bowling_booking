@@ -29,6 +29,8 @@ class FrontPageUpdateRequest extends FormRequest
                 ->all(),
             // Photos only: an SVG can carry a script.
             'cover' => [
+                // Visitors to the public demo can't put pictures online.
+                ...(config('bowling.demo') ? ['prohibited'] : []),
                 'nullable',
                 'image',
                 'mimes:png,jpg,jpeg,webp',
@@ -55,6 +57,7 @@ class FrontPageUpdateRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'cover.prohibited' => __('Uploading pictures is turned off in the demo.'),
             'cover.image' => __('The cover photo must be a PNG, JPG or WebP picture.'),
             'cover.mimes' => __('The cover photo must be a PNG, JPG or WebP picture.'),
             'cover.max' => __('The cover photo can be up to 3 MB.'),

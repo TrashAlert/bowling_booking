@@ -39,6 +39,12 @@ declare module '@inertiajs/core' {
             currencySymbol: string;
             // Reservation requests waiting for staff; null for non-staff.
             requestsWaiting: number | null;
+            // On the public demo only: the logins to try, and when it starts
+            // afresh each day ("09:00", venue time). Null everywhere else.
+            demo: {
+                logins: { role: string; email: string; password: string }[];
+                resetsAt: string;
+            } | null;
             auth: Auth;
             sidebarOpen: boolean;
             [key: string]: unknown;

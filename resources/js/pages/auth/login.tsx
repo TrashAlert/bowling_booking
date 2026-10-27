@@ -1,4 +1,4 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, usePage } from '@inertiajs/react';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
 import { Button } from '@/components/ui/button';
@@ -12,10 +12,68 @@ type Props = {
     status?: string;
 };
 
+/**
+ * On the public demo, one button per demo login, so a visitor is in with a
+ * single tap. Each sends the login form with that login filled in.
+ */
+function DemoLogins() {
+    const { demo } = usePage().props;
+
+    if (demo === null) {
+        return null;
+    }
+
+    return (
+        <section
+            aria-label="Demo logins"
+            className="space-y-3 rounded-lg border p-4"
+        >
+            <p className="text-sm text-muted-foreground">
+                Try the staff side of the demo, as either of these:
+            </p>
+            {demo.logins.map((login) => (
+                <Form key={login.email} {...store.form()}>
+                    {({ processing }) => (
+                        <>
+                            <input
+                                type="hidden"
+                                name="email"
+                                value={login.email}
+                            />
+                            <input
+                                type="hidden"
+                                name="password"
+                                value={login.password}
+                            />
+                            <Button
+                                type="submit"
+                                variant="outline"
+                                className="w-full"
+                                disabled={processing}
+                            >
+                                Log in as {login.role.toLowerCase()}
+                            </Button>
+                        </>
+                    )}
+                </Form>
+            ))}
+            <p className="text-xs text-muted-foreground">
+                Or type them in below:{' '}
+                {demo.logins
+                    .map((login) => `${login.email} / ${login.password}`)
+                    .join(', ')}
+                .
+            </p>
+        </section>
+    );
+}
+
 export default function Login({ status }: Props) {
     return (
         <>
             <Head title="Log in" />
+
+            <DemoLogins />
 
             <Form
                 {...store.form()}

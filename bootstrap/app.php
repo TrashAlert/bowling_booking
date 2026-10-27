@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureUserIsStaff;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\KeepOutOfSearchEngines;
+use App\Http\Middleware\TurnedOffInDemo;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -38,6 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => EnsureUserIsAdmin::class,
             'staff' => EnsureUserIsStaff::class,
             'noindex' => KeepOutOfSearchEngines::class,
+            'not-in-demo' => TurnedOffInDemo::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -5,6 +5,7 @@ import AnnouncementBanner from '@/components/announcement-banner';
 import BrandColors from '@/components/brand-colors';
 import BusinessLogo from '@/components/business-logo';
 import ContactDetails from '@/components/contact-details';
+import DemoBanner from '@/components/demo-banner';
 import ThemeToggle from '@/components/theme-toggle';
 import { home } from '@/routes';
 
@@ -19,6 +20,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
     return (
         <div className="flex min-h-screen flex-col bg-background text-foreground">
             <BrandColors />
+            <DemoBanner />
             <AnnouncementBanner />
             <header className="mx-auto flex w-full max-w-md items-center justify-between gap-4 p-4 sm:p-6">
                 <Link

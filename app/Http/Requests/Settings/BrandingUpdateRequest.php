@@ -27,6 +27,8 @@ class BrandingUpdateRequest extends FormRequest
             'name' => ['required', 'string', 'max:60'],
             // Photos and drawings only: an SVG can carry a script.
             'logo' => [
+                // Visitors to the public demo can't put pictures online.
+                ...(config('bowling.demo') ? ['prohibited'] : []),
                 'nullable',
                 'image',
                 'mimes:png,jpg,jpeg,webp',
@@ -100,6 +102,7 @@ class BrandingUpdateRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'logo.prohibited' => __('Uploading pictures is turned off in the demo.'),
             'logo.image' => __('The logo must be a PNG, JPG or WebP picture.'),
             'logo.mimes' => __('The logo must be a PNG, JPG or WebP picture.'),
             'logo.max' => __('The logo can be up to 1 MB.'),

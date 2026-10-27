@@ -4,6 +4,7 @@ import AnnouncementBanner from '@/components/announcement-banner';
 import BrandColors from '@/components/brand-colors';
 import BusinessLogo from '@/components/business-logo';
 import ContactDetails from '@/components/contact-details';
+import DemoBanner from '@/components/demo-banner';
 import ThemeToggle from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,7 +46,8 @@ const POLL_INTERVAL_MS = 30_000;
 // admin set under Settings, Front page.
 const actions = (texts: FrontPageTexts) => [
     {
-        // Can be closed by an admin under Settings, Online waitlist.
+        // Left off the page while an admin has closed joining online under
+        // Settings, Online waitlist.
         closable: true,
         icon: Users,
         title: texts.waitlistTitle,
@@ -220,7 +222,13 @@ function LanesFree({
     waiting,
     lanesOpen,
     opening,
-}: LaneCount & { lanesOpen: boolean; opening: OpeningStatus }) {
+    onlineOpen,
+}: LaneCount & {
+    lanesOpen: boolean;
+    opening: OpeningStatus;
+    // Whether groups can join the waitlist online, or only at the counter.
+    onlineOpen: boolean;
+}) {
     if (!opening.isOpen) {
         return (
             <div className="mx-auto mt-6 w-fit rounded-xl border px-5 py-3">
@@ -287,7 +295,9 @@ function LanesFree({
             <p className="text-sm text-muted-foreground">
                 {free > 0
                     ? 'Walk in and play, or reserve a lane for later.'
-                    : 'Join the waitlist, or reserve a lane for later.'}
+                    : onlineOpen
+                      ? 'Join the waitlist, or reserve a lane for later.'
+                      : 'Join the waitlist at the counter, or reserve a lane for later.'}
             </p>
             {opening.closesAt && (
                 <p className="text-sm text-muted-foreground">
@@ -339,12 +349,19 @@ export default function Welcome({
         ],
     });
 
+    // The waitlist card is left off while joining online is closed: walk-ins
+    // still join at the counter.
+    const cards = actions(texts).filter(
+        (item) => !item.closable || onlineWaitlist.open,
+    );
+
     return (
         <>
             <Head title="Welcome" />
             <BrandColors />
 
             <div className="flex min-h-screen flex-col bg-background text-foreground">
+                <DemoBanner />
                 <AnnouncementBanner />
                 <header className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4 p-4 sm:p-6">
                     <span className="flex items-center gap-2 truncate font-semibold tracking-tight">
@@ -398,13 +415,22 @@ export default function Welcome({
                             {...lanes}
                             lanesOpen={lanesOpen}
                             opening={opening}
+                            onlineOpen={onlineWaitlist.open}
                         />
                     </div>
 
                     {/* Each card's heading, note and button sit on rows shared
-                        with the card beside it, so the two always line up. */}
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        {actions(texts).map((item) => (
+                        with the card beside it, so the two always line up. A
+                        card on its own sits in the middle. */}
+                    <div
+                        className={cn(
+                            'grid gap-4',
+                            cards.length > 1
+                                ? 'sm:grid-cols-2'
+                                : 'mx-auto w-full max-w-md',
+                        )}
+                    >
+                        {cards.map((item) => (
                             <Card
                                 key={item.title}
                                 className="row-span-3 grid grid-rows-subgrid"
@@ -422,29 +448,17 @@ export default function Welcome({
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="text-sm text-muted-foreground">
-                                    {item.closable && !onlineWaitlist.open
-                                        ? onlineWaitlist.message
-                                        : depositAsked
-                                          ? item.note
-                                          : (item.noteWithoutDeposit ??
-                                            item.note)}
+                                    {depositAsked
+                                        ? item.note
+                                        : (item.noteWithoutDeposit ??
+                                          item.note)}
                                 </CardContent>
                                 <CardFooter>
-                                    {item.closable && !onlineWaitlist.open ? (
-                                        <Button
-                                            className="w-full"
-                                            variant="outline"
-                                            disabled
-                                        >
-                                            Joining online is closed
-                                        </Button>
-                                    ) : (
-                                        <Button className="w-full" asChild>
-                                            <Link href={item.href}>
-                                                {item.action}
-                                            </Link>
-                                        </Button>
-                                    )}
+                                    <Button className="w-full" asChild>
+                                        <Link href={item.href}>
+                                            {item.action}
+                                        </Link>
+                                    </Button>
                                 </CardFooter>
                             </Card>
                         ))}

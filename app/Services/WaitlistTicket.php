@@ -17,7 +17,10 @@ class WaitlistTicket
     // read what became of its deposit.
     public const KEEP_HOURS = 24;
 
-    public function __construct(private WaitlistEstimate $estimate) {}
+    public function __construct(
+        private WaitlistEstimate $estimate,
+        private WaitlistChanges $changes,
+    ) {}
 
     /**
      * Whether the party's page has expired: its visit ended more than
@@ -55,6 +58,8 @@ class WaitlistTicket
      *     deposit: array{amountCents: int, outcome: string|null}|null,
      *     pushOn: bool,
      *     passedOver: bool,
+     *     canChange: bool,
+     *     changed: bool,
      * }
      */
     public function for(WaitlistEntry $entry): array
@@ -99,6 +104,10 @@ class WaitlistTicket
             // Whether a phone will be notified when the party is called.
             'pushOn' => $entry->push_subscription !== null,
             'passedOver' => $this->passedOver($entry),
+            // Whether the group can still change its name, size or length
+            // itself, which it can do once, and whether it already has.
+            'canChange' => $this->changes->canChange($entry),
+            'changed' => $entry->changed_at !== null,
         ];
     }
 
